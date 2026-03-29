@@ -78,50 +78,16 @@ function SkeletonDashboard() {
   );
 }
 
-// ── RR monogram ───────────────────────────────────────────────────────────────
+// ── Logo ──────────────────────────────────────────────────────────────────────
 
-function RRMonogram() {
+function Logo() {
   return (
-    <svg
-      viewBox="0 0 64 64"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="w-full h-full"
-      aria-hidden="true"
-    >
-      {/* Left R */}
-      <text
-        x="4"
-        y="50"
-        fontFamily="'Inter', system-ui, sans-serif"
-        fontWeight="800"
-        fontSize="52"
-        fill="url(#gold)"
-        letterSpacing="-2"
-      >
-        R
-      </text>
-      {/* Right R — offset to overlap elegantly */}
-      <text
-        x="26"
-        y="50"
-        fontFamily="'Inter', system-ui, sans-serif"
-        fontWeight="800"
-        fontSize="52"
-        fill="url(#gold)"
-        letterSpacing="-2"
-        opacity="0.72"
-      >
-        R
-      </text>
-      <defs>
-        <linearGradient id="gold" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="hsl(43 80% 72%)" />
-          <stop offset="50%" stopColor="hsl(43 96% 56%)" />
-          <stop offset="100%" stopColor="hsl(38 70% 48%)" />
-        </linearGradient>
-      </defs>
-    </svg>
+    <img
+      src="/icon-512.png"
+      alt="Relic Roster"
+      className="w-full h-full object-contain"
+      draggable={false}
+    />
   );
 }
 
@@ -226,21 +192,17 @@ export function AppLoadingScreen({ message }: { message?: string }) {
       {/* Centred content */}
       <div className="relative z-10 flex flex-col items-center gap-8 px-6">
 
-        {/* Logo tile */}
+        {/* Logo */}
         <motion.div
-          className="relative w-24 h-24 rounded-2xl flex items-center justify-center"
+          className="relative w-28 h-28 rounded-2xl overflow-hidden flex items-center justify-center"
           style={{
-            background: "linear-gradient(145deg, hsl(220 18% 12%), hsl(220 18% 8%))",
-            boxShadow:
-              "0 0 0 1px hsl(43 96% 56% / 0.15), 0 8px 32px hsl(220 20% 3% / 0.6), inset 0 1px 0 hsl(43 96% 56% / 0.08)",
+            boxShadow: "0 0 0 1px hsl(43 96% 56% / 0.12), 0 12px 40px hsl(220 20% 3% / 0.7)",
           }}
           initial={{ opacity: 0, scale: 0.88 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
         >
-          <div className="w-14 h-14">
-            <RRMonogram />
-          </div>
+          <Logo />
           <LogoShimmer />
         </motion.div>
 
