@@ -104,17 +104,6 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(true);
 
-  const COLUMNS = [
-    "id", "name", "player", "team", "sport", "year", "category",
-    "sub_category", "condition", "grade", "grading_company",
-    "certification_number", "authentication_company",
-    "purchase_price", "estimated_value", "recent_sale_price",
-    "storage_location", "notes", "date_acquired", "images",
-    "collection_id", "created_at",
-    "purchased_from", "origin", "previous_owners",
-    "event_details", "supporting_evidence",
-  ].join(",");
-
   // Auth state — single source of truth
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -143,7 +132,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
 
     supabase
       .from("collection_items")
-      .select(COLUMNS)
+      .select("*")
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
         if (cancelled) return;
