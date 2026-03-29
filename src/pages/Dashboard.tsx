@@ -1,4 +1,5 @@
 import { lazy, Suspense, useMemo } from "react";
+import { AppLoadingScreen } from "@/components/AppLoadingScreen";
 import { DollarSign, Package, TrendingUp, Trophy } from "lucide-react";
 import { StatCard } from "@/components/StatCard";
 import { ItemCard } from "@/components/ItemCard";
@@ -62,16 +63,7 @@ export default function Dashboard() {
   );
 
   if (itemsLoading) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center animate-fade-in">
-        <div className="text-center space-y-4">
-          <div className="relative mx-auto w-24 h-1 rounded-full bg-muted overflow-hidden">
-            <div className="absolute h-full w-10 rounded-full bg-primary animate-[shimmer_1.2s_ease-in-out_infinite]" />
-          </div>
-          <p className="text-sm text-muted-foreground font-medium">Loading up your roster</p>
-        </div>
-      </div>
-    );
+    return <AppLoadingScreen />;
   }
 
   const totalValue = getTotalValue();
