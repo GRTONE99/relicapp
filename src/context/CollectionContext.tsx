@@ -104,69 +104,60 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(true);
 
+  const COLUMNS = [
+    "id", "name", "player", "team", "sport", "year", "category",
+    "sub_category", "condition", "grade", "grading_company",
+    "certification_number", "authentication_company",
+    "purchase_price", "estimated_value", "recent_sale_price",
+    "storage_location", "notes", "date_acquired", "images",
+    "collection_id", "created_at",
+    "purchased_from", "origin", "previous_owners",
+    "event_details", "supporting_evidence",
+  ].join(",");
+
+  // Auth state — single source of truth
   useEffect(() => {
-    let cancelled = false;
-
-    const COLUMNS = [
-      "id", "name", "player", "team", "sport", "year", "category",
-      "sub_category", "condition", "grade", "grading_company",
-      "certification_number", "authentication_company",
-      "purchase_price", "estimated_value", "recent_sale_price",
-      "storage_location", "notes", "date_acquired", "images",
-      "collection_id", "created_at",
-      "purchased_from", "origin", "previous_owners",
-      "event_details", "supporting_evidence",
-    ].join(",");
-
-    const fetchItems = (userId: string) => {
-      supabase
-        .from("collection_items")
-        .select(COLUMNS)
-        .order("created_at", { ascending: false })
-        .then(({ data, error }) => {
-          if (cancelled) return;
-          if (error) { toast.error(`${error.code}: ${error.message}`); console.error("items fetch error", error); }
-          else if (data) setItems(data.map(rowToItem));
-          setItemsLoading(false);
-        });
-    };
-
-    // getSession() reads the stored JWT from localStorage — typically <5ms.
-    // We fire the items query immediately after confirming the session so
-    // the auth header is guaranteed to be present (avoids RLS rejection).
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (cancelled) return;
-      const resolvedUser = session?.user ?? null;
-      setUser(resolvedUser);
+      setUser(session?.user ?? null);
       setLoading(false);
-      if (resolvedUser) {
-        fetchItems(resolvedUser.id);
-      } else {
-        setItems([]);
-        setItemsLoading(false);
-      }
     });
 
-    // Handle sign-in / sign-out events after initial load
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (cancelled) return;
-      const resolvedUser = session?.user ?? null;
-      setUser(resolvedUser);
+      setUser(session?.user ?? null);
       setLoading(false);
-      if (resolvedUser) {
-        setItemsLoading(true);
-        fetchItems(resolvedUser.id);
-      } else {
-        setItems([]);
-        setItemsLoading(false);
-      }
     });
 
-    return () => {
-      cancelled = true;
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
+
+  // Fetch items once user is known
+  useEffect(() => {
+    if (!user) {
+      setItems([]);
+      setItemsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setItemsLoading(true);
+
+    supabase
+      .from("collection_items")
+      .select(COLUMNS)
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          toast.error("Failed to load your collection.");
+          console.error("items fetch error", error);
+        } else if (data) {
+          setItems(data.map(rowToItem));
+        }
+        setItemsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [user]);
 
   // ── Free-tier limit ─────────────────────────────────────────────────────────
 
