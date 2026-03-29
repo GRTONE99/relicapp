@@ -137,7 +137,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       .then(({ data, error }) => {
         if (cancelled) return;
         if (error) {
-          toast.error(`Failed to load collection: ${error.message} (${error.code})`);
+          toast.error("Failed to load your collection.");
           setItemsLoading(false);
           return;
         }

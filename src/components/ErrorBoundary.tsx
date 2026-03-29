@@ -25,8 +25,14 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    // In production this is where you'd call Sentry.captureException(error, { extra: info })
     console.error("[ErrorBoundary]", error, info.componentStack);
+
+    // A "Failed to fetch dynamically imported module" error means the browser
+    // cached a chunk manifest that no longer matches the server after a new
+    // deploy. The only correct fix is a hard reload to fetch the new manifest.
+    if (error.message?.includes("Failed to fetch dynamically imported module")) {
+      window.location.reload();
+    }
   }
 
   handleReset = () => {
