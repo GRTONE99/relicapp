@@ -156,12 +156,54 @@ function buildReportHTML(items: CollectionItem[], title: string, includeInsuranc
       padding: 32px;
       color: #1a1a1a;
     }
-    @media print { body { padding: 0; } }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #e5e5e5;
+    }
+    .toolbar-actions { display: flex; gap: 10px; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      line-height: 1;
+    }
+    .btn-print {
+      background: #1a1a1a;
+      color: #fff;
+    }
+    .btn-close {
+      background: #f0f0f0;
+      color: #1a1a1a;
+    }
+    .btn:hover { opacity: 0.85; }
+    @media print {
+      .toolbar { display: none; }
+      body { padding: 0; }
+    }
   </style>
 </head>
 <body>
-  <h1 style="font-size:22px;margin-bottom:4px;">${escapedTitle}</h1>
-  <p style="color:#666;margin-top:0;">Generated on ${new Date().toLocaleDateString()}</p>
+  <div class="toolbar">
+    <div>
+      <h1 style="font-size:20px;margin:0 0 2px;">${escapedTitle}</h1>
+      <p style="color:#666;margin:0;font-size:13px;">Generated on ${new Date().toLocaleDateString()}</p>
+    </div>
+    <div class="toolbar-actions">
+      <button class="btn btn-print" onclick="window.print()">Print / Save PDF</button>
+      <button class="btn btn-close" onclick="window.close()">✕ Close</button>
+    </div>
+  </div>
 
   <div style="background:#f5f5f5;border-radius:8px;padding:16px;margin-bottom:24px;">
     <table style="width:100%;font-size:14px;">
