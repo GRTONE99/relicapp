@@ -102,36 +102,26 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CollectionItem[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [itemsLoading, setItemsLoading] = useState(true);
+  const [itemsLoading, setItemsLoading] = useState(false);
 
-  // Auth — both getSession() and onAuthStateChange run. getSession() is the
-  // guaranteed resolver; onAuthStateChange handles post-mount events.
-  // We store only the user ID in a separate piece of state so the items
-  // useEffect depends on a stable string rather than the user object reference
-  // (which changes on every getSession/onAuthStateChange call even for the
-  // same user, causing duplicate fetches that race each other).
-  const [userId, setUserId] = useState<string | null>(null);
-
+  // Auth state
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-      setUserId(session?.user?.id ?? null);
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      setUserId(session?.user?.id ?? null);
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch items when the user ID changes (stable string — won't double-fire
-  // when getSession and onAuthStateChange both resolve for the same user).
+  // Fetch items whenever user changes
   useEffect(() => {
-    if (!userId) {
+    if (!user) {
       setItems([]);
       setItemsLoading(false);
       return;
@@ -148,7 +138,6 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         if (error) {
           toast.error("Failed to load your collection.");
-          console.error("items fetch error", error);
         } else if (data) {
           setItems(data.map(rowToItem));
         }
@@ -156,7 +145,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       });
 
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [user]);
 
   // ── Free-tier limit ─────────────────────────────────────────────────────────
 
