@@ -104,13 +104,11 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(true);
 
-  // Auth state — single source of truth
+  // Auth state — onAuthStateChange alone covers both initial session restore
+  // and subsequent sign-in/out events. It emits INITIAL_SESSION synchronously
+  // on mount (Supabase JS v2), so getSession() is redundant and causes the
+  // items useEffect to fire twice (once per setUser call), wasting a fetch.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);

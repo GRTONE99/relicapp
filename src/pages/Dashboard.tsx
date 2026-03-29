@@ -1,5 +1,5 @@
 import { lazy, Suspense, useMemo } from "react";
-import { AppLoadingScreen } from "@/components/AppLoadingScreen";
+import { InitialLoadingScreen } from "@/components/InitialLoadingScreen";
 import { DollarSign, Package, TrendingUp, Trophy } from "lucide-react";
 import { StatCard } from "@/components/StatCard";
 import { ItemCard } from "@/components/ItemCard";
@@ -63,7 +63,7 @@ export default function Dashboard() {
   );
 
   if (itemsLoading) {
-    return <AppLoadingScreen />;
+    return <InitialLoadingScreen />;
   }
 
   const totalValue = getTotalValue();

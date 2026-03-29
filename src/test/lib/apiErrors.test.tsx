@@ -16,11 +16,9 @@ const mockSingle = vi.fn();
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     auth: {
-      getSession: vi.fn().mockResolvedValue({
-        data: { session: { user: { id: "user-123", email: "test@example.com" } } },
-      }),
-      onAuthStateChange: vi.fn().mockReturnValue({
-        data: { subscription: { unsubscribe: vi.fn() } },
+      onAuthStateChange: vi.fn().mockImplementation((cb) => {
+        cb("INITIAL_SESSION", { user: { id: "user-123", email: "test@example.com" } });
+        return { data: { subscription: { unsubscribe: vi.fn() } } };
       }),
     },
     from: vi.fn().mockReturnValue({
