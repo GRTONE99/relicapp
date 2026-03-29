@@ -27,10 +27,14 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[ErrorBoundary]", error, info.componentStack);
 
-    // A "Failed to fetch dynamically imported module" error means the browser
-    // cached a chunk manifest that no longer matches the server after a new
-    // deploy. The only correct fix is a hard reload to fetch the new manifest.
-    if (error.message?.includes("Failed to fetch dynamically imported module")) {
+    // Stale chunk errors after a new deploy — browser cached a chunk URL that
+    // no longer exists on the server. Chrome reports "Failed to fetch dynamically
+    // imported module"; Safari reports "'text/html' is not a valid JavaScript
+    // MIME type" (server returned a 404 HTML page instead of JS).
+    const isStaleChunk =
+      error.message?.includes("Failed to fetch dynamically imported module") ||
+      error.message?.includes("is not a valid JavaScript MIME type");
+    if (isStaleChunk) {
       window.location.reload();
     }
   }
