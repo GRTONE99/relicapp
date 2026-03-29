@@ -215,16 +215,15 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
 function ShareButtons({ cardRef }: ShareButtonsProps) {
   const [isCapturing, setIsCapturing] = useState(false);
 
-  const saveImage = useCallback(async (): Promise<Blob | null> => {
+  const isMobile = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  const captureBlob = useCallback(async (): Promise<Blob | null> => {
     const blob = await captureCardAsBlob(cardRef);
-    if (!blob) {
-      toast.error("Could not capture image.");
-      return null;
-    }
+    if (!blob) toast.error("Could not capture image.");
     return blob;
   }, [cardRef]);
 
-  const downloadImage = useCallback(async (blob: Blob) => {
+  const downloadBlob = useCallback((blob: Blob) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -233,72 +232,88 @@ function ShareButtons({ cardRef }: ShareButtonsProps) {
     URL.revokeObjectURL(url);
   }, []);
 
-  const nativeShare = useCallback(async () => {
-    setIsCapturing(true);
-    try {
-      const blob = await saveImage();
-      if (!blob) return;
-      const file = new File([blob], "relic-roster-share.png", { type: "image/png" });
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ title: "My Relic Roster", text: "Check out my collection on Relic Roster!", url: "https://relicroster.com", files: [file] });
-        toast.success("Shared successfully!");
-      } else {
-        await downloadImage(blob);
-        toast.success("Image saved! Share it from your photos.");
-      }
-    } catch (err: any) {
-      if (err?.name !== "AbortError") toast.error("Something went wrong.");
-    } finally {
-      setIsCapturing(false);
-    }
-  }, [cardRef, saveImage, downloadImage]);
+  const withCapture = useCallback(
+    (fn: (blob: Blob, file: File) => Promise<void>) =>
+      async () => {
+        setIsCapturing(true);
+        try {
+          const blob = await captureBlob();
+          if (!blob) return;
+          const file = new File([blob], "relic-roster-share.png", { type: "image/png" });
+          await fn(blob, file);
+        } finally {
+          setIsCapturing(false);
+        }
+      },
+    [captureBlob],
+  );
 
-  const shareViaNative = useCallback(async () => {
-    setIsCapturing(true);
+  const shareToX = withCapture(async (blob, file) => {
+    const text = "Check out my sports collectibles roster on Relic Roster! 🏆";
+    const siteUrl = "https://relicroster.com";
+    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(siteUrl)}`;
     try {
-      const blob = await saveImage();
-      if (!blob) return;
-      const file = new File([blob], "relic-roster-share.png", { type: "image/png" });
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({
-          title: "My Relic Roster",
-          text: "Check out my collection on Relic Roster! 🏆",
-          files: [file],
-        });
-        toast.success("Shared successfully!");
+      if (isMobile() && navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ title: "My Relic Roster", text, files: [file] });
       } else {
-        // Fallback: download the image
-        await downloadImage(blob);
-        toast.success("Image saved! Share it from your photos.");
+        downloadBlob(blob);
+        window.open(twitterUrl, "_blank", "noopener,noreferrer,width=550,height=450");
+        toast.success("Image saved — attach it to your post in X.");
       }
-    } catch (err: any) {
-      if (err?.name !== "AbortError") {
-        // Final fallback
-        const blob = await saveImage();
-        if (blob) await downloadImage(blob);
-        toast.success("Image saved! Share it from your photos.");
+    } catch (err: unknown) {
+      if ((err as { name?: string })?.name !== "AbortError") {
+        downloadBlob(blob);
+        window.open(twitterUrl, "_blank", "noopener,noreferrer,width=550,height=450");
+        toast.success("Image saved — attach it to your post in X.");
       }
-    } finally {
-      setIsCapturing(false);
     }
-  }, [saveImage, downloadImage]);
-  const handleDownload = useCallback(async () => {
-    setIsCapturing(true);
+  });
+
+  const shareToFacebook = withCapture(async (blob, file) => {
+    const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent("https://relicroster.com")}`;
     try {
-      const blob = await saveImage();
-      if (!blob) return;
-      await downloadImage(blob);
-      toast.success("Image downloaded!");
-    } finally {
-      setIsCapturing(false);
+      if (isMobile() && navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ title: "My Relic Roster", text: "Check out my sports collectibles!", files: [file] });
+      } else {
+        downloadBlob(blob);
+        window.open(fbUrl, "_blank", "noopener,noreferrer,width=626,height=436");
+        toast.success("Image saved — attach it to your Facebook post.");
+      }
+    } catch (err: unknown) {
+      if ((err as { name?: string })?.name !== "AbortError") {
+        downloadBlob(blob);
+        window.open(fbUrl, "_blank", "noopener,noreferrer,width=626,height=436");
+        toast.success("Image saved — attach it to your Facebook post.");
+      }
     }
-  }, [saveImage, downloadImage]);
+  });
+
+  const shareToInstagram = withCapture(async (blob, file) => {
+    try {
+      if (isMobile() && navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ title: "My Relic Roster", files: [file] });
+      } else {
+        downloadBlob(blob);
+        toast.success("Image saved — open Instagram on your phone to share.");
+      }
+    } catch (err: unknown) {
+      if ((err as { name?: string })?.name !== "AbortError") {
+        downloadBlob(blob);
+        toast.success("Image saved — open Instagram on your phone to share.");
+      }
+    }
+  });
+
+  const handleDownload = withCapture(async (blob) => {
+    downloadBlob(blob);
+    toast.success("Image downloaded!");
+  });
 
   const shareTargets = [
-    { name: "Facebook", icon: <FacebookIcon className="w-5 h-5" />, action: shareViaNative },
-    { name: "X", icon: <XIcon className="w-5 h-5" />, action: shareViaNative },
-    { name: "Instagram", icon: <InstagramIcon className="w-5 h-5" />, action: shareViaNative },
-    { name: "Save", icon: <Download className="w-5 h-5" />, action: handleDownload },
+    { name: "Facebook",  icon: <FacebookIcon className="w-5 h-5" />,  action: shareToFacebook },
+    { name: "X",         icon: <XIcon className="w-5 h-5" />,          action: shareToX },
+    { name: "Instagram", icon: <InstagramIcon className="w-5 h-5" />, action: shareToInstagram },
+    { name: "Save",      icon: <Download className="w-5 h-5" />,       action: handleDownload },
   ];
 
   return (
