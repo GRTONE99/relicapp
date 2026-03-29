@@ -104,40 +104,34 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(true);
 
-  // Auth state — getSession() guarantees we resolve even if onAuthStateChange
-  // is slow. onAuthStateChange handles SIGNED_IN / SIGNED_OUT after that.
-  // The initialised ref prevents onAuthStateChange from calling setUser a
-  // second time on INITIAL_SESSION when getSession() already resolved first,
-  // avoiding the double items-fetch that was causing the slow load.
-  useEffect(() => {
-    let initialised = false;
+  // Auth — both getSession() and onAuthStateChange run. getSession() is the
+  // guaranteed resolver; onAuthStateChange handles post-mount events.
+  // We store only the user ID in a separate piece of state so the items
+  // useEffect depends on a stable string rather than the user object reference
+  // (which changes on every getSession/onAuthStateChange call even for the
+  // same user, causing duplicate fetches that race each other).
+  const [userId, setUserId] = useState<string | null>(null);
 
+  useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      initialised = true;
       setUser(session?.user ?? null);
+      setUserId(session?.user?.id ?? null);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!initialised && event === "INITIAL_SESSION") {
-        // getSession() hasn't resolved yet — let this one through
-        initialised = true;
-        setUser(session?.user ?? null);
-        setLoading(false);
-        return;
-      }
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setUserId(session?.user?.id ?? null);
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch items once user is known
+  // Fetch items when the user ID changes (stable string — won't double-fire
+  // when getSession and onAuthStateChange both resolve for the same user).
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setItems([]);
       setItemsLoading(false);
       return;
@@ -162,7 +156,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       });
 
     return () => { cancelled = true; };
-  }, [user]);
+  }, [userId]);
 
   // ── Free-tier limit ─────────────────────────────────────────────────────────
 
