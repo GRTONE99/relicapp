@@ -24,6 +24,7 @@ export default defineConfig({
         // Browsers can cache vendor chunks across deploys.
         manualChunks: {
           "vendor-react":   ["react", "react-dom", "react-router-dom"],
+          "vendor-motion":  ["framer-motion"],
           "vendor-supabase": ["@supabase/supabase-js"],
           "vendor-ui":      [
             "@radix-ui/react-dialog",
