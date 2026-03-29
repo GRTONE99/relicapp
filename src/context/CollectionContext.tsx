@@ -104,38 +104,42 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(true);
 
-  // Auth state
+  // Fire auth check and items fetch in parallel on mount.
+  // Supabase JS already has the stored JWT in memory, so the items query
+  // runs with the correct auth header even before getSession() resolves.
+  // If the user is not signed in, the RLS policy returns an empty result
+  // which we discard once we confirm there is no session.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // Fetch items when auth state resolves
-  useEffect(() => {
-    if (!user) {
-      setItems([]);
-      setItemsLoading(false);
-      return;
-    }
-
     let cancelled = false;
-    setItemsLoading(true);
 
-    supabase
+    const COLUMNS = [
+      "id", "name", "player", "team", "sport", "year", "category",
+      "sub_category", "condition", "grade", "grading_company",
+      "certification_number", "authentication_company",
+      "purchase_price", "estimated_value", "recent_sale_price",
+      "storage_location", "notes", "date_acquired", "images",
+      "collection_id", "created_at",
+      "purchased_from", "origin", "previous_owners",
+      "event_details", "supporting_evidence",
+    ].join(",");
+
+    const sessionPromise = supabase.auth.getSession();
+    const itemsPromise = supabase
       .from("collection_items")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
+      .select(COLUMNS)
+      .order("created_at", { ascending: false });
+
+    Promise.all([sessionPromise, itemsPromise]).then(
+      ([{ data: { session } }, { data, error }]) => {
         if (cancelled) return;
+        const resolvedUser = session?.user ?? null;
+        setUser(resolvedUser);
+        setLoading(false);
+        if (!resolvedUser) {
+          setItems([]);
+          setItemsLoading(false);
+          return;
+        }
         if (error) {
           toast.error("Failed to load your collection.");
           setItemsLoading(false);
@@ -143,10 +147,37 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
         }
         if (data) setItems(data.map(rowToItem));
         setItemsLoading(false);
-      });
+      },
+    );
 
-    return () => { cancelled = true; };
-  }, [user]);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (cancelled) return;
+      setUser(session?.user ?? null);
+      setLoading(false);
+      // Re-fetch items on sign-in after initial load (e.g. user signs in from /auth)
+      if (session?.user) {
+        setItemsLoading(true);
+        supabase
+          .from("collection_items")
+          .select(COLUMNS)
+          .order("created_at", { ascending: false })
+          .then(({ data, error }) => {
+            if (cancelled) return;
+            if (error) { toast.error("Failed to load your collection."); }
+            else if (data) setItems(data.map(rowToItem));
+            setItemsLoading(false);
+          });
+      } else {
+        setItems([]);
+        setItemsLoading(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // ── Free-tier limit ─────────────────────────────────────────────────────────
 

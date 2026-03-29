@@ -5,7 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { CollectionProvider, useCollection } from "@/context/CollectionContext";
-import { AppLoadingScreen } from "@/components/AppLoadingScreen";
+import { InitialLoadingScreen } from "@/components/InitialLoadingScreen";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // All page chunks are deferred — only the chunk for the active route is fetched.
@@ -23,17 +23,17 @@ const Profile          = lazy(() => import("@/pages/Profile"));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useCollection();
-  if (loading) return <AppLoadingScreen message="Restoring your account..." />;
+  if (loading) return <InitialLoadingScreen message="Restoring your account..." />;
   if (!user) return <Navigate to="/auth" replace />;
   return <>{children}</>;
 }
 
 function AuthRoute() {
   const { user, loading } = useCollection();
-  if (loading) return <AppLoadingScreen message="Checking your sign-in status..." />;
+  if (loading) return <InitialLoadingScreen message="Checking your sign-in status..." />;
   if (user) return <Navigate to="/" replace />;
   return (
-    <Suspense fallback={<AppLoadingScreen message="Loading..." />}>
+    <Suspense fallback={<InitialLoadingScreen message="Loading..." />}>
       <Auth />
     </Suspense>
   );
@@ -47,7 +47,7 @@ const App = () => (
       <CollectionProvider>
         <BrowserRouter>
           <Navbar />
-          <Suspense fallback={<AppLoadingScreen message="Loading..." />}>
+          <Suspense fallback={<InitialLoadingScreen message="Loading..." />}>
             <Routes>
               <Route path="/auth" element={<AuthRoute />} />
               <Route path="/reset-password" element={<ResetPassword />} />
