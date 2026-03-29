@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadItemImages } from "@/lib/imageUpload";
 import { FREE_ITEM_LIMIT } from "@/lib/constants";
@@ -272,14 +272,25 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   };
 
   // ── Computed metrics ────────────────────────────────────────────────────────
+  // Single pass over items for all aggregate values; result is stable across
+  // renders until items changes.
 
-  const getTotalValue  = () => items.reduce((sum, item) => sum + item.estimatedValue, 0);
-  const getTotalCost   = () => items.reduce((sum, item) => sum + item.purchasePrice,  0);
-  const getTotalGain   = () => getTotalValue() - getTotalCost();
-  const getTopAsset    = () =>
-    items.length === 0
-      ? null
-      : items.reduce((max, item) => (item.estimatedValue > max.estimatedValue ? item : max), items[0]);
+  const { _totalValue, _totalCost, _topAsset } = useMemo(() => {
+    let _totalValue = 0;
+    let _totalCost  = 0;
+    let _topAsset: CollectionItem | null = null;
+    for (const item of items) {
+      _totalValue += item.estimatedValue;
+      _totalCost  += item.purchasePrice;
+      if (!_topAsset || item.estimatedValue > _topAsset.estimatedValue) _topAsset = item;
+    }
+    return { _totalValue, _totalCost, _topAsset };
+  }, [items]);
+
+  const getTotalValue = () => _totalValue;
+  const getTotalCost  = () => _totalCost;
+  const getTotalGain  = () => _totalValue - _totalCost;
+  const getTopAsset   = () => _topAsset;
 
   const signOut = async () => {
     await supabase.auth.signOut();

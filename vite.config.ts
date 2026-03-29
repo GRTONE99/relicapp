@@ -43,7 +43,6 @@ export default defineConfig({
             "@radix-ui/react-switch",
           ],
           "vendor-charts":  ["recharts"],
-          "vendor-query":   ["@tanstack/react-query"],
         },
       },
     },
