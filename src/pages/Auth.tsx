@@ -39,22 +39,30 @@ export default function Auth() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (isLogin) {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+      // Wrap in a race against a 20s timeout so the button never hangs
+      // indefinitely if the Supabase project is sleeping/waking up.
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Request timed out")), 20000)
+      );
 
+      if (isLogin) {
+        const { error } = await Promise.race([
+          supabase.auth.signInWithPassword({ email, password }),
+          timeout,
+        ]);
+        if (error) throw error;
         toast.success("Welcome back!");
       } else {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth`,
-          },
-        });
+        const { data, error } = await Promise.race([
+          supabase.auth.signUp({
+            email,
+            password,
+            options: { emailRedirectTo: `${window.location.origin}/auth` },
+          }),
+          timeout,
+        ]);
         if (error) throw error;
 
-        // When email already exists, Supabase returns a user with an empty identities array
         if (data.user && data.user.identities && data.user.identities.length === 0) {
           toast.error("An account with this email already exists. Please sign in instead.");
           setIsLogin(true);
@@ -62,13 +70,14 @@ export default function Auth() {
         }
 
         toast.success("Account created! Check your email to confirm your account.");
-        return; // Don't navigate - they need to confirm email first
+        return;
       }
       navigate("/");
     } catch (error: any) {
-      const msg = error?.message || "An error occurred";
-      // Don't expose internal details - provide user-friendly messages
-      if (msg.includes("Invalid login")) {
+      const msg = error?.message || "";
+      if (msg.includes("timed out")) {
+        toast.error("Connection timed out. The server may be waking up — please try again in a moment.");
+      } else if (msg.includes("Invalid login")) {
         toast.error("Invalid email or password.");
       } else if (msg.includes("Email not confirmed")) {
         toast.error("Please confirm your email before signing in.");

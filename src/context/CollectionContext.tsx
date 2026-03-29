@@ -111,7 +111,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     // 10 seconds so the user is redirected to /auth instead of stuck forever.
     const authTimeout = setTimeout(() => {
       setLoading(false);
-    }, 10000);
+    }, 30000);
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       clearTimeout(authTimeout);
@@ -149,7 +149,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
         toast.error("Loading timed out. Check your connection and refresh.");
         setItemsLoading(false);
       }
-    }, 15000);
+    }, 30000);
 
     supabase
       .from("collection_items")
