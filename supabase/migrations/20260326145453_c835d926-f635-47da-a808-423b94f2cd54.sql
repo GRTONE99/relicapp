@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_collection_items_user_created ON public.collection_items (user_id, created_at DESC);
