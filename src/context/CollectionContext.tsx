@@ -104,11 +104,6 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(true);
 
-  // Fire auth check and items fetch in parallel on mount.
-  // Supabase JS already has the stored JWT in memory, so the items query
-  // runs with the correct auth header even before getSession() resolves.
-  // If the user is not signed in, the RLS policy returns an empty result
-  // which we discard once we confirm there is no session.
   useEffect(() => {
     let cancelled = false;
 
@@ -123,50 +118,44 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       "event_details", "supporting_evidence",
     ].join(",");
 
-    const sessionPromise = supabase.auth.getSession();
-    const itemsPromise = supabase
-      .from("collection_items")
-      .select(COLUMNS)
-      .order("created_at", { ascending: false });
+    const fetchItems = (userId: string) => {
+      supabase
+        .from("collection_items")
+        .select(COLUMNS)
+        .order("created_at", { ascending: false })
+        .then(({ data, error }) => {
+          if (cancelled) return;
+          if (error) { toast.error("Failed to load your collection."); }
+          else if (data) setItems(data.map(rowToItem));
+          setItemsLoading(false);
+        });
+    };
 
-    Promise.all([sessionPromise, itemsPromise]).then(
-      ([{ data: { session } }, { data, error }]) => {
-        if (cancelled) return;
-        const resolvedUser = session?.user ?? null;
-        setUser(resolvedUser);
-        setLoading(false);
-        if (!resolvedUser) {
-          setItems([]);
-          setItemsLoading(false);
-          return;
-        }
-        if (error) {
-          toast.error("Failed to load your collection.");
-          setItemsLoading(false);
-          return;
-        }
-        if (data) setItems(data.map(rowToItem));
+    // getSession() reads the stored JWT from localStorage — typically <5ms.
+    // We fire the items query immediately after confirming the session so
+    // the auth header is guaranteed to be present (avoids RLS rejection).
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled) return;
+      const resolvedUser = session?.user ?? null;
+      setUser(resolvedUser);
+      setLoading(false);
+      if (resolvedUser) {
+        fetchItems(resolvedUser.id);
+      } else {
+        setItems([]);
         setItemsLoading(false);
-      },
-    );
+      }
+    });
 
+    // Handle sign-in / sign-out events after initial load
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (cancelled) return;
-      setUser(session?.user ?? null);
+      const resolvedUser = session?.user ?? null;
+      setUser(resolvedUser);
       setLoading(false);
-      // Re-fetch items on sign-in after initial load (e.g. user signs in from /auth)
-      if (session?.user) {
+      if (resolvedUser) {
         setItemsLoading(true);
-        supabase
-          .from("collection_items")
-          .select(COLUMNS)
-          .order("created_at", { ascending: false })
-          .then(({ data, error }) => {
-            if (cancelled) return;
-            if (error) { toast.error("Failed to load your collection."); }
-            else if (data) setItems(data.map(rowToItem));
-            setItemsLoading(false);
-          });
+        fetchItems(resolvedUser.id);
       } else {
         setItems([]);
         setItemsLoading(false);
