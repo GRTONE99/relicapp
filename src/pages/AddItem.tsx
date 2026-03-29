@@ -189,8 +189,16 @@ export default function AddItem() {
       if (err instanceof Error && err.message === "FREE_LIMIT_REACHED") {
         setShowLimitDialog(true);
       } else {
-        const msg = err instanceof Error ? err.message : JSON.stringify(err);
-        toast.error(msg || "Failed to add item.");
+        let msg = "Unknown error";
+        if (err instanceof Error) {
+          msg = err.message;
+        } else if (err && typeof err === "object" && "message" in err) {
+          msg = String((err as Record<string, unknown>).message);
+        } else {
+          msg = JSON.stringify(err);
+        }
+        toast.error(msg);
+        console.error("addItem error:", err);
       }
     } finally {
       setSubmitting(false);
