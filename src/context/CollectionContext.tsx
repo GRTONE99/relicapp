@@ -106,17 +106,29 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
 
   // Auth state
   useEffect(() => {
+    // Safety timeout: if getSession() never resolves (Supabase project paused,
+    // network failure, stale JWT refresh hang), unblock the loading screen after
+    // 10 seconds so the user is redirected to /auth instead of stuck forever.
+    const authTimeout = setTimeout(() => {
+      setLoading(false);
+    }, 10000);
+
     supabase.auth.getSession().then(({ data: { session } }) => {
+      clearTimeout(authTimeout);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      clearTimeout(authTimeout);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(authTimeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Fetch items whenever user changes
@@ -130,11 +142,21 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     setItemsLoading(true);
 
+    // Safety timeout: if the query never resolves, unblock the dashboard after
+    // 15 seconds so the user sees the empty state instead of loading forever.
+    const fetchTimeout = setTimeout(() => {
+      if (!cancelled) {
+        toast.error("Loading timed out. Check your connection and refresh.");
+        setItemsLoading(false);
+      }
+    }, 15000);
+
     supabase
       .from("collection_items")
       .select("*")
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
+        clearTimeout(fetchTimeout);
         if (cancelled) return;
         if (error) {
           toast.error("Failed to load your collection.");
@@ -144,7 +166,11 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
         setItemsLoading(false);
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      clearTimeout(fetchTimeout);
+      setItemsLoading(false);
+    };
   }, [user]);
 
   // ── Free-tier limit ─────────────────────────────────────────────────────────
