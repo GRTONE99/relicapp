@@ -104,14 +104,32 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(true);
 
-  // Auth state — onAuthStateChange alone covers both initial session restore
-  // and subsequent sign-in/out events. It emits INITIAL_SESSION synchronously
-  // on mount (Supabase JS v2), so getSession() is redundant and causes the
-  // items useEffect to fire twice (once per setUser call), wasting a fetch.
+  // Auth state — getSession() guarantees we resolve even if onAuthStateChange
+  // is slow. onAuthStateChange handles SIGNED_IN / SIGNED_OUT after that.
+  // The initialised ref prevents onAuthStateChange from calling setUser a
+  // second time on INITIAL_SESSION when getSession() already resolved first,
+  // avoiding the double items-fetch that was causing the slow load.
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    let initialised = false;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      initialised = true;
       setUser(session?.user ?? null);
       setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!initialised && event === "INITIAL_SESSION") {
+        // getSession() hasn't resolved yet — let this one through
+        initialised = true;
+        setUser(session?.user ?? null);
+        setLoading(false);
+        return;
+      }
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
     });
 
     return () => subscription.unsubscribe();
