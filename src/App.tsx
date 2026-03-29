@@ -7,6 +7,7 @@ import { Navbar } from "@/components/Navbar";
 import { CollectionProvider, useCollection } from "@/context/CollectionContext";
 import { InitialLoadingScreen } from "@/components/InitialLoadingScreen";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { Analytics } from "@vercel/analytics/react";
 
 // All page chunks are deferred — only the chunk for the active route is fetched.
 const Dashboard        = lazy(() => import("@/pages/Dashboard"));
@@ -64,6 +65,7 @@ const App = () => (
           </Suspense>
         </BrowserRouter>
       </CollectionProvider>
+      <Analytics />
     </TooltipProvider>
   </ErrorBoundary>
 );
