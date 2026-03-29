@@ -186,19 +186,37 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
         date_acquired: item.dateAcquired || null,
         images: imageUrls,
         collection_id: item.collectionId,
-        // Provenance
-        purchased_from: item.purchasedFrom,
-        origin: item.origin,
-        previous_owners: item.previousOwners,
-        event_details: item.eventDetails,
-        supporting_evidence: item.supportingEvidence,
       })
       .select()
       .single();
 
-    if (error) {
-      throw error;
+    if (error) throw error;
+
+    // Provenance fields are patched in a separate UPDATE so that a stale
+    // PostgREST schema cache on the INSERT path doesn't block item creation.
+    const hasProvenance =
+      item.purchasedFrom || item.origin || item.previousOwners ||
+      item.eventDetails || item.supportingEvidence;
+
+    if (data && hasProvenance) {
+      await supabase
+        .from("collection_items")
+        .update({
+          purchased_from: item.purchasedFrom,
+          origin: item.origin,
+          previous_owners: item.previousOwners,
+          event_details: item.eventDetails,
+          supporting_evidence: item.supportingEvidence,
+        })
+        .eq("id", data.id);
+      // Merge provenance into the returned row for local state
+      data.purchased_from = item.purchasedFrom;
+      data.origin = item.origin;
+      data.previous_owners = item.previousOwners;
+      data.event_details = item.eventDetails;
+      data.supporting_evidence = item.supportingEvidence;
     }
+
     if (data) {
       setItems((prev) => [rowToItem(data), ...prev]);
     }
