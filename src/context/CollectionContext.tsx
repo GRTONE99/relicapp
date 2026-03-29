@@ -125,7 +125,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
         .order("created_at", { ascending: false })
         .then(({ data, error }) => {
           if (cancelled) return;
-          if (error) { toast.error("Failed to load your collection."); }
+          if (error) { toast.error(`${error.code}: ${error.message}`); console.error("items fetch error", error); }
           else if (data) setItems(data.map(rowToItem));
           setItemsLoading(false);
         });
