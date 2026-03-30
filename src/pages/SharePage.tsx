@@ -55,7 +55,7 @@ function ShareCardPreview({ type, item, items, totalValue, itemCount, displayNam
       <div className="rounded-xl border bg-card overflow-hidden max-w-sm mx-auto">
         {item.images[0] && (
           <div className="aspect-[4/3] overflow-hidden bg-secondary">
-            <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover" />
+            <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
           </div>
         )}
         <div className="p-5 space-y-3">
@@ -83,7 +83,7 @@ function ShareCardPreview({ type, item, items, totalValue, itemCount, displayNam
         <div className="grid grid-cols-2 gap-0.5 bg-secondary">
           {displayItems.map((it) => (
             <div key={it.id} className="aspect-square overflow-hidden">
-              <img src={it.images[0]} alt={it.name} className="w-full h-full object-cover" />
+              <img src={it.images[0]} alt={it.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
             </div>
           ))}
         </div>
@@ -148,7 +148,7 @@ function ShareCardPreview({ type, item, items, totalValue, itemCount, displayNam
         {recentItems.map((it) => (
           <div key={it.id} className="flex items-center gap-3 px-5 py-3 border-t">
             <div className="w-12 h-12 rounded-lg overflow-hidden bg-secondary shrink-0">
-              <img src={it.images[0]} alt={it.name} className="w-full h-full object-cover" />
+              <img src={it.images[0]} alt={it.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{it.name}</p>
@@ -195,10 +195,14 @@ async function copyImageToClipboardFromBlob(blob: Blob): Promise<boolean> {
   }
 }
 
-// Convert a remote image URL to a base64 data URL so html-to-image can inline
-// it without hitting cross-origin restrictions on Supabase storage URLs.
+// Convert a remote image URL to a base64 data URL.
+// Cache-bust the URL so the browser doesn't serve a previously-cached response
+// that was stored without CORS headers (img tags loaded without crossOrigin="anonymous"
+// poison the browser cache — a CORS fetch against that cache entry fails).
 async function toDataUrl(src: string): Promise<string> {
-  const res = await fetch(src, { mode: "cors", credentials: "omit" });
+  const url = src + (src.includes("?") ? "&" : "?") + "_cb=" + Date.now();
+  const res = await fetch(url, { mode: "cors", credentials: "omit" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const blob = await res.blob();
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -212,19 +216,26 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
   if (!cardRef.current) return null;
   try {
     // Pre-inline all <img> srcs as data URLs so toPng sees same-origin images.
-    // External Supabase URLs are cross-origin and fail silently inside html-to-image.
+    // html-to-image silently replaces failed image fetches with an empty string;
+    // pre-fetching ourselves (with cache-busting) avoids that silent failure.
     const imgs = Array.from(cardRef.current.querySelectorAll<HTMLImageElement>("img"));
     const originals = new Map<HTMLImageElement, string>();
     await Promise.all(
       imgs.map(async (img) => {
         const src = img.getAttribute("src") || "";
-        if (!src || src.startsWith("data:")) return;
+        if (!src || src.startsWith("data:") || src.startsWith("blob:")) return;
         try {
           const dataUrl = await toDataUrl(src);
           originals.set(img, src);
           img.src = dataUrl;
-        } catch {
-          // leave src unchanged if fetch fails
+          // Wait for the browser to paint the new src before capture
+          await new Promise<void>((resolve) => {
+            if (img.complete) { resolve(); return; }
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+          });
+        } catch (e) {
+          console.warn("Share: could not inline image", src, e);
         }
       }),
     );
@@ -233,6 +244,9 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
       pixelRatio: 2,
       cacheBust: true,
       skipAutoScale: true,
+      // Fallback: if any img still has a remote src (pre-fetch failed),
+      // tell html-to-image to fetch it with CORS mode.
+      fetchRequestInit: { mode: "cors", credentials: "omit" },
     });
 
     // Restore original srcs so the page UI is unchanged after capture
@@ -433,7 +447,7 @@ export default function SharePage() {
                       selectedItemId === item.id ? "border-primary" : "border-transparent"
                     }`}
                   >
-                    <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover" />
+                    <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
                   </button>
                 ))}
               </div>
