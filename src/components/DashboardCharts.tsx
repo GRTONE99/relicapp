@@ -1,5 +1,6 @@
 // Isolated recharts import — this file is lazy-loaded by Dashboard so the
 // vendor-charts chunk (411 KB) is only fetched when the dashboard route renders.
+import { useState } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -25,6 +26,8 @@ interface DashboardChartsProps {
 }
 
 export default function DashboardCharts({ portfolioHistory, categoryBreakdown }: DashboardChartsProps) {
+  const [hovered, setHovered] = useState<PortfolioPoint | null>(null);
+
   return (
     <div className="grid lg:grid-cols-3 gap-4">
       <Card className="lg:col-span-2">
@@ -34,7 +37,16 @@ export default function DashboardCharts({ portfolioHistory, categoryBreakdown }:
         <CardContent>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={portfolioHistory}>
+              <AreaChart
+                data={portfolioHistory}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                onMouseMove={(state: any) => {
+                  if (state?.activePayload?.length) {
+                    setHovered(state.activePayload[0].payload as PortfolioPoint);
+                  }
+                }}
+                onMouseLeave={() => setHovered(null)}
+              >
                 <defs>
                   <linearGradient id="valueGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="hsl(43 96% 56%)" stopOpacity={0.3} />
@@ -44,20 +56,35 @@ export default function DashboardCharts({ portfolioHistory, categoryBreakdown }:
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 13% 18%)" />
                 <XAxis dataKey="date" tick={{ fill: "hsl(215 15% 50%)", fontSize: 12 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: "hsl(215 15% 50%)", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                {/* Tooltip is kept only for the cursor line — content renders nothing */}
                 <Tooltip
-                  contentStyle={{ background: "hsl(220 18% 10%)", border: "1px solid hsl(220 13% 18%)", borderRadius: "8px", color: "hsl(210 20% 95%)" }}
-                  formatter={(value: number) => [`$${value.toLocaleString()}`, "Total Value"]}
-                  labelFormatter={(_label, payload) => {
-                    if (payload?.[0]?.payload) {
-                      const p = payload[0].payload;
-                      return `${p.date} — Added: ${p.itemName} ($${p.itemValue.toLocaleString()})`;
-                    }
-                    return _label;
-                  }}
+                  content={() => null}
+                  cursor={{ stroke: "hsl(215 15% 50%)", strokeWidth: 1, strokeDasharray: "3 3" }}
                 />
                 <Area type="monotone" dataKey="value" stroke="hsl(43 96% 56%)" strokeWidth={2} fill="url(#valueGrad)" />
               </AreaChart>
             </ResponsiveContainer>
+          </div>
+
+          {/* Hover info panel — normal document flow, can never overflow the card */}
+          <div className="mt-3 min-h-[36px] px-1">
+            {hovered ? (
+              <div className="flex flex-col gap-0.5 text-sm">
+                <div className="flex flex-wrap items-center gap-x-2">
+                  <span className="font-semibold text-foreground">{hovered.date}</span>
+                  <span style={{ color: "hsl(43 96% 56%)" }} className="font-medium">
+                    ${hovered.value.toLocaleString()}
+                  </span>
+                </div>
+                {hovered.itemName && (
+                  <span className="text-muted-foreground text-xs leading-snug">
+                    + {hovered.itemName}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground/40">Hover a point to see details</p>
+            )}
           </div>
         </CardContent>
       </Card>
