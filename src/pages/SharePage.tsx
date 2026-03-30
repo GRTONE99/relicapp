@@ -195,15 +195,49 @@ async function copyImageToClipboardFromBlob(blob: Blob): Promise<boolean> {
   }
 }
 
+// Convert a remote image URL to a base64 data URL so html-to-image can inline
+// it without hitting cross-origin restrictions on Supabase storage URLs.
+async function toDataUrl(src: string): Promise<string> {
+  const res = await fetch(src, { mode: "cors", credentials: "omit" });
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Promise<Blob | null> {
   if (!cardRef.current) return null;
   try {
+    // Pre-inline all <img> srcs as data URLs so toPng sees same-origin images.
+    // External Supabase URLs are cross-origin and fail silently inside html-to-image.
+    const imgs = Array.from(cardRef.current.querySelectorAll<HTMLImageElement>("img"));
+    const originals = new Map<HTMLImageElement, string>();
+    await Promise.all(
+      imgs.map(async (img) => {
+        const src = img.getAttribute("src") || "";
+        if (!src || src.startsWith("data:")) return;
+        try {
+          const dataUrl = await toDataUrl(src);
+          originals.set(img, src);
+          img.src = dataUrl;
+        } catch {
+          // leave src unchanged if fetch fails
+        }
+      }),
+    );
+
     const dataUrl = await toPng(cardRef.current, {
       pixelRatio: 2,
       cacheBust: true,
-      fetchRequestInit: { mode: "cors", credentials: "omit" },
       skipAutoScale: true,
     });
+
+    // Restore original srcs so the page UI is unchanged after capture
+    originals.forEach((src, img) => { img.src = src; });
+
     const res = await fetch(dataUrl);
     return await res.blob();
   } catch (err) {
