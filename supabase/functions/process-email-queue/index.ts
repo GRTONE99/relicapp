@@ -1,4 +1,6 @@
-import { sendLovableEmail } from 'npm:@lovable.dev/email-js'
+// Resend is the email delivery provider for Relic Roster.
+// All outbound email goes through Resend's API using RESEND_API_KEY (Supabase secret).
+import { Resend } from 'npm:resend'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const MAX_RETRIES = 5
@@ -79,11 +81,12 @@ async function moveToDlq(
 }
 
 Deno.serve(async (req) => {
-  const apiKey = Deno.env.get('LOVABLE_API_KEY')
+  // RESEND_API_KEY must be set as a Supabase secret (supabase secrets set RESEND_API_KEY=re_...)
+  const resendApiKey = Deno.env.get('RESEND_API_KEY')
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-  if (!apiKey || !supabaseUrl || !supabaseServiceKey) {
+  if (!resendApiKey || !supabaseUrl || !supabaseServiceKey) {
     console.error('Missing required environment variables')
     return new Response(
       JSON.stringify({ error: 'Server configuration error' }),
@@ -246,26 +249,20 @@ Deno.serve(async (req) => {
       }
 
       try {
-        await sendLovableEmail(
-          {
-            run_id: payload.run_id,
-            to: payload.to,
-            from: payload.from,
-            sender_domain: payload.sender_domain,
-            subject: payload.subject,
-            html: payload.html,
-            text: payload.text,
-            purpose: payload.purpose,
-            label: payload.label,
-            idempotency_key: payload.idempotency_key,
-            unsubscribe_token: payload.unsubscribe_token,
-            message_id: payload.message_id,
-          },
-          // sendUrl is optional — when LOVABLE_SEND_URL is not set, the library
-          // falls back to the default Lovable API endpoint (https://api.lovable.dev).
-          // Set LOVABLE_SEND_URL as a Supabase secret to override (e.g. for local dev).
-          { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
-        )
+        // Send via Resend. The from address must be a verified domain in your Resend account.
+        // Current sender: "Relic Roster <noreply@relicroster.com>"
+        const resend = new Resend(resendApiKey)
+        const { error: sendError } = await resend.emails.send({
+          from: payload.from,
+          to: [payload.to],
+          subject: payload.subject,
+          html: payload.html,
+          text: payload.text,
+        })
+
+        if (sendError) {
+          throw new Error(sendError.message)
+        }
 
         // Log success
         await supabase.from('email_send_log').insert({
