@@ -12,8 +12,14 @@
 --   • Select "Confirm signup" and paste the branded HTML template
 --   • Supabase will send emails natively going forward
 
--- 1. Unschedule the queue-processing cron job
-SELECT cron.unschedule('process-email-queue');
+-- 1. Unschedule the queue-processing cron job (only if pg_cron is installed)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    PERFORM cron.unschedule('process-email-queue');
+  END IF;
+END;
+$$;
 
 -- 2. Drain any pending messages so old queued emails are not sent
 DO $$
