@@ -12,6 +12,7 @@ import { useCollection } from "@/context/CollectionContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { PhotoUploadCard } from "@/components/AddItem/PhotoUploadCard";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   SPORT_OPTIONS,
   CATEGORY_OPTIONS,
@@ -282,7 +283,7 @@ export default function AddItem() {
               </div>
               <div className="space-y-2">
                 <Label>Date Acquired</Label>
-                <Input type="date" value={dateAcquired} onChange={(e) => setDateAcquired(e.target.value)} />
+                <DatePicker value={dateAcquired} onChange={setDateAcquired} />
               </div>
             </div>
             <div className="space-y-2">

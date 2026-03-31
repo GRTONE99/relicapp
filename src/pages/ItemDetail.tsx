@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DatePicker } from "@/components/ui/date-picker";
 import { ArrowLeft, Shield, TrendingUp, Calendar, Pencil, Trash2, Save, X, Trophy, Package, ScrollText, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ItemImageGallery } from "@/components/ItemDetail/ItemImageGallery";
@@ -300,7 +301,7 @@ export default function ItemDetail() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Date Acquired</Label>
-                    <Input type="date" value={form.dateAcquired} onChange={(e) => updateField("dateAcquired", e.target.value)} />
+                    <DatePicker value={form.dateAcquired} onChange={(val) => updateField("dateAcquired", val)} />
                   </div>
                 </div>
                 <div className="space-y-1">
