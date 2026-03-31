@@ -74,9 +74,18 @@ export async function uploadItemImage(
     body: formData,
   });
 
-  const data = await response.json();
-  if (!data.success) throw new Error(data.error);
-  return data.url;
+  const text = await response.text();
+  console.log("upload-image response:", response.status, text);
+
+  let data: { success: boolean; error?: string; url?: string };
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Upload failed (${response.status}): ${text.slice(0, 200)}`);
+  }
+
+  if (!data.success) throw new Error(data.error ?? "Upload failed");
+  return data.url!;
 }
 
 export async function uploadItemImages(
