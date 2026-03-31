@@ -228,13 +228,31 @@ Deno.serve(async (req) => {
     ? `${email_data.site_url}/auth/v1/verify?token=${email_data.token_hash}&type=${actionType}&redirect_to=${email_data.redirect_to}`
     : email_data?.redirect_to
 
+  // Signup uses a Resend-managed template
+  if (actionType === 'signup' || actionType === 'email_confirmation') {
+    try {
+      const resend = new Resend(resendApiKey)
+      const { error } = await resend.emails.send({
+        from: FROM_ADDRESS,
+        to: [user.email],
+        template_id: 'b1c15d0e-8997-4e33-a296-369c131c23d7',
+        variables: { confirmation_url: confirmationUrl },
+      } as any)
+
+      if (error) console.error('Resend send error:', error)
+      else console.log('Signup email sent via Resend template:', { to: user.email })
+    } catch (err) {
+      console.error('Resend exception:', err instanceof Error ? err.message : String(err))
+    }
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
   let template: { subject: string; html: string }
 
   switch (actionType) {
-    case 'signup':
-    case 'email_confirmation':
-      template = signupTemplate(confirmationUrl)
-      break
     case 'recovery':
       template = recoveryTemplate(confirmationUrl)
       break
