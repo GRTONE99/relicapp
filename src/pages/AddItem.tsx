@@ -131,7 +131,7 @@ export default function AddItem() {
       if (err instanceof Error && err.message === "FREE_LIMIT_REACHED") {
         setShowLimitDialog(true);
       } else {
-        toast.error("Failed to add item. Please try again.");
+        toast.error(`Failed to add item: ${err instanceof Error ? err.message : String(err)}`);
       }
     } finally {
       setSubmitting(false);
