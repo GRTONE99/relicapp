@@ -110,9 +110,7 @@ Guidelines:
     if (!response.ok) {
       const errorText = await response.text();
       console.error("OpenAI API error:", response.status, errorText);
-      const userMessage = response.status === 429
-        ? "Service is busy. Please try again in a moment."
-        : `OpenAI API error (${response.status}): ${errorText.slice(0, 200)}`;
+      const userMessage = `OpenAI API error (${response.status}): ${errorText.slice(0, 300)}`;
       return new Response(JSON.stringify({ success: false, error: userMessage }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
