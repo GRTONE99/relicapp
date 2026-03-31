@@ -48,6 +48,11 @@ serve(async (req) => {
     const { imageBase64 } = await req.json();
     if (!imageBase64) throw new Error("imageBase64 is required");
 
+    // Ensure proper data URI format for OpenAI
+    const imageUrl = imageBase64.startsWith("data:")
+      ? imageBase64
+      : `data:image/jpeg;base64,${imageBase64}`;
+
     const systemPrompt = `You are a sports memorabilia and collectibles identification expert. Analyze the image and extract as much information as possible about the item shown.
 
 You MUST respond by calling the extract_item_info function with the detected information. If you cannot determine a field, leave it as an empty string. For prices, use 0 if unknown.
@@ -69,7 +74,7 @@ Guidelines:
           role: "user",
           content: [
             { type: "text", text: "Identify this sports collectible item and extract all details you can see." },
-            { type: "image_url", image_url: { url: imageBase64 } },
+            { type: "image_url", image_url: { url: imageUrl } },
           ],
         },
       ],
