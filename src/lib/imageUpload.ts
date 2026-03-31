@@ -1,13 +1,6 @@
-import { supabase } from "@/integrations/supabase/client";
-
 const MAX_DIMENSION = 1920;
 const JPEG_QUALITY = 0.85;
 
-/**
- * Compress an image blob to at most MAX_DIMENSION on its longest side,
- * normalising output to JPEG. Images already within the limit are returned
- * unchanged (no re-encoding overhead).
- */
 async function compressImage(blob: Blob): Promise<Blob> {
   return new Promise((resolve) => {
     const img = new Image();
@@ -43,17 +36,13 @@ async function compressImage(blob: Blob): Promise<Blob> {
 
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      resolve(blob); // fall back to original on error
+      resolve(blob);
     };
 
     img.src = objectUrl;
   });
 }
 
-/**
- * Upload an image (base64 data URL or File) to the item-photos bucket.
- * Compresses before upload. Returns the public URL.
- */
 export async function uploadItemImage(
   userId: string,
   file: File | string,
@@ -69,22 +58,27 @@ export async function uploadItemImage(
   }
 
   const compressed = await compressImage(blob);
-  const fileName = `${userId}/${crypto.randomUUID()}.jpg`;
 
-  const { error } = await supabase.storage
-    .from("item-photos")
-    .upload(fileName, compressed, { upsert: true, contentType: "image/jpeg" });
+  const formData = new FormData();
+  formData.append("file", new File([compressed], "image.jpg", { type: "image/jpeg" }));
+  formData.append("userId", userId);
 
-  if (error) throw error;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-  const { data } = supabase.storage.from("item-photos").getPublicUrl(fileName);
-  return data.publicUrl;
+  const response = await fetch(`${supabaseUrl}/functions/v1/upload-image`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${supabaseKey}`,
+    },
+    body: formData,
+  });
+
+  const data = await response.json();
+  if (!data.success) throw new Error(data.error);
+  return data.url;
 }
 
-/**
- * Upload multiple images in parallel. Existing https:// URLs are passed through
- * unchanged; base64 data URLs are compressed and uploaded concurrently.
- */
 export async function uploadItemImages(
   userId: string,
   images: string[]
