@@ -12,8 +12,8 @@ serve(async (req) => {
   }
 
   try {
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
     const { imageBase64 } = await req.json();
     if (!imageBase64) throw new Error("imageBase64 is required");
@@ -31,14 +31,14 @@ Guidelines:
 - Sport must be one of: baseball, basketball, boxing, football, golf, hockey, mma, motorsports, soccer, tennis
 - Grading company must be one of: psa, bgs, sgc (lowercase) or empty`;
 
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${GEMINI_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gemini-2.0-flash",
+        model: "gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
           {
@@ -84,10 +84,10 @@ Guidelines:
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Gemini API error:", response.status, errorText);
+      console.error("OpenAI API error:", response.status, errorText);
       const userMessage = response.status === 429
         ? "Rate limit exceeded. Please try again in a moment."
-        : `Gemini API error (${response.status}): ${errorText.slice(0, 200)}`;
+        : `OpenAI API error (${response.status}): ${errorText.slice(0, 200)}`;
       return new Response(JSON.stringify({ success: false, error: userMessage }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
