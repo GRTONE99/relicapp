@@ -89,9 +89,10 @@
   input[type="date"] {
     height: 2.5rem;
     color-scheme: dark;
+    color: hsl(var(--foreground));
   }
   input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: brightness(0) invert(1);
+    filter: brightness(0) invert(0.95) sepia(0.1) saturate(0.5) hue-rotate(185deg);
     cursor: pointer;
     opacity: 1;
   }
