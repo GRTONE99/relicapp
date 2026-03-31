@@ -86,7 +86,13 @@
   .mono {
     font-family: 'JetBrains Mono', monospace;
   }
+  input[type="date"] {
+    height: 2.5rem;
+    color-scheme: dark;
+  }
   input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: invert(1);
+    filter: brightness(0) invert(1);
+    cursor: pointer;
+    opacity: 1;
   }
 }
