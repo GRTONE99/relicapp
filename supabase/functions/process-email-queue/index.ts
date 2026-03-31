@@ -192,6 +192,21 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Batch check for already-sent messages — avoids one DB query per message in the loop below.
+    const alreadySentSet = new Set<string>()
+    if (messageIds.length > 0) {
+      const { data: sentRows } = await supabase
+        .from('email_send_log')
+        .select('message_id')
+        .in('message_id', messageIds)
+        .eq('status', 'sent')
+      for (const row of sentRows ?? []) {
+        if (typeof row.message_id === 'string' && row.message_id) {
+          alreadySentSet.add(row.message_id)
+        }
+      }
+    }
+
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i]
       const payload = msg.message
@@ -222,30 +237,21 @@ Deno.serve(async (req) => {
         continue
       }
 
-      // Guard: skip if another worker already sent this message (VT expired race)
-      if (payload.message_id) {
-        const { data: alreadySent } = await supabase
-          .from('email_send_log')
-          .select('id')
-          .eq('message_id', payload.message_id)
-          .eq('status', 'sent')
-          .maybeSingle()
-
-        if (alreadySent) {
-          console.warn('Skipping duplicate send (already sent)', {
-            queue,
-            msg_id: msg.msg_id,
-            message_id: payload.message_id,
-          })
-          const { error: dupDelError } = await supabase.rpc('delete_email', {
-            queue_name: queue,
-            message_id: msg.msg_id,
-          })
-          if (dupDelError) {
-            console.error('Failed to delete duplicate message from queue', { queue, msg_id: msg.msg_id, error: dupDelError })
-          }
-          continue
+      // Guard: skip if another worker already sent this message (pre-fetched above)
+      if (payload.message_id && alreadySentSet.has(payload.message_id)) {
+        console.warn('Skipping duplicate send (already sent)', {
+          queue,
+          msg_id: msg.msg_id,
+          message_id: payload.message_id,
+        })
+        const { error: dupDelError } = await supabase.rpc('delete_email', {
+          queue_name: queue,
+          message_id: msg.msg_id,
+        })
+        if (dupDelError) {
+          console.error('Failed to delete duplicate message from queue', { queue, msg_id: msg.msg_id, error: dupDelError })
         }
+        continue
       }
 
       try {

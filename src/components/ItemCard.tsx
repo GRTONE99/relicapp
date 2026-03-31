@@ -8,7 +8,7 @@ interface ItemCardProps {
 
 export function ItemCard({ item }: ItemCardProps) {
   const gain = item.estimatedValue - item.purchasePrice;
-  const gainPercent = ((gain / item.purchasePrice) * 100).toFixed(1);
+  const gainPercent = item.purchasePrice > 0 ? ((gain / item.purchasePrice) * 100).toFixed(1) : "0.0";
 
   return (
     <Link to={`/item/${item.id}`}>

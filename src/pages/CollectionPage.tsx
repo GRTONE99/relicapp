@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ItemCard } from "@/components/ItemCard";
 import { useCollection } from "@/context/CollectionContext";
 import { Input } from "@/components/ui/input";
@@ -19,27 +19,52 @@ const CATEGORY_LABELS: Record<string, string> = {
   "game-used": "Game-Used Artifacts", documents: "Documents", "promotional-items": "Promotional Items",
 };
 
+const ITEMS_PER_PAGE = 50;
+
 export default function CollectionPage() {
-  const { items } = useCollection();
+  const { items, getTotalValue } = useCollection();
   const [search, setSearch] = useState("");
   const [rosterFilter, setRosterFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
 
-  const sports = [...new Set(items.map((i) => i.sport).filter(Boolean))];
-  const categories = [...new Set(items.map((i) => i.category).filter(Boolean))];
+  const sports = useMemo(
+    () => [...new Set(items.map((i) => i.sport).filter(Boolean))],
+    [items]
+  );
 
-  const filtered = items.filter((item) => {
-    const matchSearch = item.name.toLowerCase().includes(search.toLowerCase()) || item.player.toLowerCase().includes(search.toLowerCase());
-    const matchSport = rosterFilter === "all" || item.sport === rosterFilter;
-    const matchCat = categoryFilter === "all" || item.category === categoryFilter;
-    return matchSearch && matchSport && matchCat;
-  });
+  const categories = useMemo(
+    () => [...new Set(items.map((i) => i.category).filter(Boolean))],
+    [items]
+  );
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return items.filter((item) => {
+      const matchSearch =
+        item.name.toLowerCase().includes(q) ||
+        item.player.toLowerCase().includes(q);
+      const matchSport = rosterFilter === "all" || item.sport === rosterFilter;
+      const matchCat = categoryFilter === "all" || item.category === categoryFilter;
+      return matchSearch && matchSport && matchCat;
+    });
+  }, [items, search, rosterFilter, categoryFilter]);
+
+  // Reset to first page whenever filters or search change
+  useEffect(() => {
+    setVisibleCount(ITEMS_PER_PAGE);
+  }, [search, rosterFilter, categoryFilter]);
+
+  const visibleItems = filtered.slice(0, visibleCount);
+  const hasMore = filtered.length > visibleCount;
 
   return (
     <div className="container max-w-7xl py-6 pb-24 md:pb-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Roster</h1>
-        <p className="text-muted-foreground text-sm">{items.length} items · ${items.reduce((s, i) => s + i.estimatedValue, 0).toLocaleString()} total value</p>
+        <p className="text-muted-foreground text-sm">
+          {items.length} items · ${getTotalValue().toLocaleString()} total value
+        </p>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -64,12 +89,22 @@ export default function CollectionPage() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-        {filtered.map((item) => (
+        {visibleItems.map((item) => (
           <ItemCard key={item.id} item={item} />
         ))}
       </div>
       {filtered.length === 0 && (
         <div className="text-center py-16 text-muted-foreground">No items match your filters.</div>
+      )}
+      {hasMore && (
+        <div className="text-center pt-2">
+          <button
+            onClick={() => setVisibleCount((c) => c + ITEMS_PER_PAGE)}
+            className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+          >
+            Show more ({filtered.length - visibleCount} remaining)
+          </button>
+        </div>
       )}
     </div>
   );

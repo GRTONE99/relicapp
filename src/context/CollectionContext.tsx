@@ -40,6 +40,18 @@ export interface CollectionItem {
   supportingEvidence: string;
 }
 
+// ─── Profile model ────────────────────────────────────────────────────────────
+
+export interface ProfileData {
+  username: string;
+  display_name: string;
+  avatar_url: string;
+  favorite_sport: string;
+  favorite_team: string;
+  personal_collection: string;
+  bio: string;
+}
+
 // ─── Context type ─────────────────────────────────────────────────────────────
 
 interface CollectionContextType {
@@ -54,6 +66,9 @@ interface CollectionContextType {
   user: User | null;
   loading: boolean;
   itemsLoading: boolean;
+  profile: ProfileData | null;
+  profileLoading: boolean;
+  refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
   isAtFreeLimit: () => boolean;
 }
@@ -103,6 +118,8 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(false);
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   // Auth state
   useEffect(() => {
@@ -171,6 +188,36 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       clearTimeout(fetchTimeout);
       setItemsLoading(false);
     };
+  }, [user]);
+
+  // Fetch profile whenever user changes
+  useEffect(() => {
+    if (!user) {
+      setProfile(null);
+      return;
+    }
+    setProfileLoading(true);
+    supabase
+      .from("profiles")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        setProfile(
+          data
+            ? {
+                username: data.username || "",
+                display_name: data.display_name || "",
+                avatar_url: data.avatar_url || "",
+                favorite_sport: data.favorite_sport || "",
+                favorite_team: data.favorite_team || "",
+                personal_collection: data.personal_collection || "",
+                bio: data.bio || "",
+              }
+            : null
+        );
+        setProfileLoading(false);
+      });
   }, [user]);
 
   // ── Free-tier limit ─────────────────────────────────────────────────────────
@@ -335,10 +382,33 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const getTotalGain  = () => _totalValue - _totalCost;
   const getTopAsset   = () => _topAsset;
 
+  const refreshProfile = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    setProfile(
+      data
+        ? {
+            username: data.username || "",
+            display_name: data.display_name || "",
+            avatar_url: data.avatar_url || "",
+            favorite_sport: data.favorite_sport || "",
+            favorite_team: data.favorite_team || "",
+            personal_collection: data.personal_collection || "",
+            bio: data.bio || "",
+          }
+        : null
+    );
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
     setItems([]);
+    setProfile(null);
   };
 
   return (
@@ -355,6 +425,9 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
         user,
         loading,
         itemsLoading,
+        profile,
+        profileLoading,
+        refreshProfile,
         signOut,
         isAtFreeLimit,
       }}

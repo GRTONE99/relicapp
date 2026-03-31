@@ -1,34 +1,79 @@
 import { supabase } from "@/integrations/supabase/client";
 
+const MAX_DIMENSION = 1920;
+const JPEG_QUALITY = 0.85;
+
 /**
- * Upload an image (base64 data URL or File) to the item-photos storage bucket.
- * Returns the public URL of the uploaded image.
+ * Compress an image blob to at most MAX_DIMENSION on its longest side,
+ * normalising output to JPEG. Images already within the limit are returned
+ * unchanged (no re-encoding overhead).
+ */
+async function compressImage(blob: Blob): Promise<Blob> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(blob);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      let { width, height } = img;
+
+      if (width <= MAX_DIMENSION && height <= MAX_DIMENSION) {
+        resolve(blob);
+        return;
+      }
+
+      if (width > height) {
+        height = Math.round((height / width) * MAX_DIMENSION);
+        width = MAX_DIMENSION;
+      } else {
+        width = Math.round((width / height) * MAX_DIMENSION);
+        height = MAX_DIMENSION;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (compressed) => resolve(compressed ?? blob),
+        "image/jpeg",
+        JPEG_QUALITY
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(blob); // fall back to original on error
+    };
+
+    img.src = objectUrl;
+  });
+}
+
+/**
+ * Upload an image (base64 data URL or File) to the item-photos bucket.
+ * Compresses before upload. Returns the public URL.
  */
 export async function uploadItemImage(
   userId: string,
-  file: File | string, // File object or base64 data URL
-  index: number
+  file: File | string,
+  _index: number
 ): Promise<string> {
   let blob: Blob;
-  let ext = "png";
 
   if (typeof file === "string") {
-    // base64 data URL
     const res = await fetch(file);
     blob = await res.blob();
-    const mimeMatch = file.match(/^data:image\/(\w+)/);
-    if (mimeMatch) ext = mimeMatch[1] === "jpeg" ? "jpg" : mimeMatch[1];
   } else {
     blob = file;
-    const parts = file.name.split(".");
-    ext = parts[parts.length - 1] || "png";
   }
 
-  const fileName = `${userId}/${crypto.randomUUID()}.${ext}`;
+  const compressed = await compressImage(blob);
+  const fileName = `${userId}/${crypto.randomUUID()}.jpg`;
 
   const { error } = await supabase.storage
     .from("item-photos")
-    .upload(fileName, blob, { upsert: true, contentType: blob.type || "image/png" });
+    .upload(fileName, compressed, { upsert: true, contentType: "image/jpeg" });
 
   if (error) throw error;
 
@@ -37,24 +82,18 @@ export async function uploadItemImage(
 }
 
 /**
- * Upload multiple images, returning an array of public URLs.
- * Accepts a mix of existing URLs (passed through) and base64 data URLs (uploaded).
+ * Upload multiple images in parallel. Existing https:// URLs are passed through
+ * unchanged; base64 data URLs are compressed and uploaded concurrently.
  */
 export async function uploadItemImages(
   userId: string,
   images: string[]
 ): Promise<string[]> {
-  const results: string[] = [];
-  for (let i = 0; i < images.length; i++) {
-    const img = images[i];
-    // If it's already a URL (not base64), keep it
-    if (img.startsWith("http://") || img.startsWith("https://")) {
-      results.push(img);
-    } else {
-      // It's a base64 data URL — upload it
-      const url = await uploadItemImage(userId, img, i);
-      results.push(url);
-    }
-  }
-  return results;
+  return Promise.all(
+    images.map((img, i) =>
+      img.startsWith("http://") || img.startsWith("https://")
+        ? Promise.resolve(img)
+        : uploadItemImage(userId, img, i)
+    )
+  );
 }

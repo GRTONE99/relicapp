@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCollection } from "@/context/CollectionContext";
+import type { ProfileData } from "@/context/CollectionContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,16 +15,6 @@ import { toast } from "@/hooks/use-toast";
 
 const SPORTS = ["Baseball", "Basketball", "Football", "Hockey", "Soccer", "Golf", "Tennis", "Boxing/MMA", "Racing", "Other"];
 
-interface ProfileData {
-  username: string;
-  display_name: string;
-  avatar_url: string;
-  favorite_sport: string;
-  favorite_team: string;
-  personal_collection: string;
-  bio: string;
-}
-
 const emptyProfile: ProfileData = {
   username: "",
   display_name: "",
@@ -35,48 +26,34 @@ const emptyProfile: ProfileData = {
 };
 
 export default function Profile() {
-  const { user } = useCollection();
+  const { user, profile: cachedProfile, profileLoading: contextProfileLoading, refreshProfile } = useCollection();
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<ProfileData>(emptyProfile);
+  const [editProfile, setEditProfile] = useState<ProfileData>(emptyProfile);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isNew, setIsNew] = useState(false);
   const [uploading, setUploading] = useState(false);
-  
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const initRef = useRef(false);
 
+  // Initialise the edit form from the context profile once it finishes loading.
+  // Using a ref prevents re-initialisation if the context value updates after a save.
   useEffect(() => {
-    if (!user) return;
-    const fetchProfile = async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (data) {
-        setProfile({
-          username: data.username || "",
-          display_name: data.display_name || "",
-          avatar_url: data.avatar_url || "",
-          favorite_sport: data.favorite_sport || "",
-          favorite_team: data.favorite_team || "",
-          personal_collection: data.personal_collection || "",
-          bio: data.bio || "",
-        });
-        setIsNew(false);
-      } else {
-        setIsNew(true);
-      }
-      setLoading(false);
-    };
-    fetchProfile();
-  }, [user]);
+    if (contextProfileLoading || initRef.current) return;
+    initRef.current = true;
+    if (cachedProfile) {
+      setEditProfile(cachedProfile);
+      setIsNew(false);
+    } else {
+      setIsNew(true);
+    }
+    setLoading(false);
+  }, [contextProfileLoading, cachedProfile]);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
-    // Validate file type and size
     if (!file.type.startsWith("image/")) {
       toast({ title: "Invalid file", description: "Please select an image file.", variant: "destructive" });
       return;
@@ -100,28 +77,24 @@ export default function Profile() {
       return;
     }
 
-    const { data: urlData } = supabase.storage
-      .from("profile-photos")
-      .getPublicUrl(filePath);
-
-    setProfile((prev) => ({ ...prev, avatar_url: urlData.publicUrl + "?t=" + Date.now() }));
+    const { data: urlData } = supabase.storage.from("profile-photos").getPublicUrl(filePath);
+    setEditProfile((prev) => ({ ...prev, avatar_url: urlData.publicUrl + "?t=" + Date.now() }));
     setUploading(false);
     toast({ title: "Photo uploaded!" });
   };
 
   const handleSave = async () => {
     if (!user) return;
-    if (!profile.username.trim() || !profile.display_name.trim()) {
+    if (!editProfile.username.trim() || !editProfile.display_name.trim()) {
       toast({ title: "Required fields missing", description: "Username and Display Name are required.", variant: "destructive" });
       return;
     }
 
     setSaving(true);
 
-    // Check for duplicate username using security definer function
     const { data: usernameAvailable, error: usernameErr } = await supabase
       .rpc("check_username_available", {
-        check_username: profile.username.trim(),
+        check_username: editProfile.username.trim(),
         current_user_id: user.id,
       });
 
@@ -131,10 +104,9 @@ export default function Profile() {
       return;
     }
 
-    // Check for duplicate display name using security definer function
     const { data: displayNameAvailable, error: displayNameErr } = await supabase
       .rpc("check_display_name_available", {
-        check_display_name: profile.display_name.trim(),
+        check_display_name: editProfile.display_name.trim(),
         current_user_id: user.id,
       });
 
@@ -145,28 +117,27 @@ export default function Profile() {
     }
 
     if (isNew) {
-      const { error } = await supabase.from("profiles").insert({
-        user_id: user.id,
-        ...profile,
-      });
+      const { error } = await supabase.from("profiles").insert({ user_id: user.id, ...editProfile });
       if (error) {
         toast({ title: "Error saving profile", description: error.message, variant: "destructive" });
       } else {
         setIsNew(false);
+        await refreshProfile();
         toast({ title: "Profile created!" });
       }
     } else {
-      const { error } = await supabase.from("profiles").update(profile).eq("user_id", user.id);
+      const { error } = await supabase.from("profiles").update(editProfile).eq("user_id", user.id);
       if (error) {
         toast({ title: "Error updating profile", description: error.message, variant: "destructive" });
       } else {
+        await refreshProfile();
         toast({ title: "Profile updated!" });
       }
     }
     setSaving(false);
   };
 
-  if (loading) {
+  if (loading || contextProfileLoading) {
     return <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground">Loading...</div>;
   }
 
@@ -184,9 +155,9 @@ export default function Profile() {
           {/* Profile Photo */}
           <div className="flex flex-col items-center gap-3">
             <Avatar className="w-24 h-24 border-2 border-primary/20">
-              <AvatarImage src={profile.avatar_url} alt="Profile photo" />
+              <AvatarImage src={editProfile.avatar_url} alt="Profile photo" />
               <AvatarFallback className="text-2xl">
-                {profile.display_name?.[0]?.toUpperCase() || <User className="w-8 h-8" />}
+                {editProfile.display_name?.[0]?.toUpperCase() || <User className="w-8 h-8" />}
               </AvatarFallback>
             </Avatar>
             <input
@@ -217,8 +188,8 @@ export default function Profile() {
               <Input
                 id="username"
                 placeholder="e.g. relic_king99"
-                value={profile.username}
-                onChange={(e) => setProfile((p) => ({ ...p, username: e.target.value.replace(/[^a-zA-Z0-9_]/g, "") }))}
+                value={editProfile.username}
+                onChange={(e) => setEditProfile((p) => ({ ...p, username: e.target.value.replace(/[^a-zA-Z0-9_]/g, "") }))}
                 maxLength={30}
               />
               <p className="text-xs text-muted-foreground">Letters, numbers, and underscores only</p>
@@ -229,8 +200,8 @@ export default function Profile() {
               <Input
                 id="display_name"
                 placeholder="e.g. Scott Hicks"
-                value={profile.display_name}
-                onChange={(e) => setProfile((p) => ({ ...p, display_name: e.target.value }))}
+                value={editProfile.display_name}
+                onChange={(e) => setEditProfile((p) => ({ ...p, display_name: e.target.value }))}
                 maxLength={50}
               />
             </div>
@@ -243,8 +214,8 @@ export default function Profile() {
             <div className="space-y-2">
               <Label htmlFor="favorite_sport">Favorite Sport</Label>
               <Select
-                value={profile.favorite_sport}
-                onValueChange={(val) => setProfile((p) => ({ ...p, favorite_sport: val }))}
+                value={editProfile.favorite_sport}
+                onValueChange={(val) => setEditProfile((p) => ({ ...p, favorite_sport: val }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a sport" />
@@ -262,8 +233,8 @@ export default function Profile() {
               <Input
                 id="favorite_team"
                 placeholder="e.g. Edmonton Oilers"
-                value={profile.favorite_team}
-                onChange={(e) => setProfile((p) => ({ ...p, favorite_team: e.target.value }))}
+                value={editProfile.favorite_team}
+                onChange={(e) => setEditProfile((p) => ({ ...p, favorite_team: e.target.value }))}
                 maxLength={50}
               />
             </div>
@@ -273,8 +244,8 @@ export default function Profile() {
               <Input
                 id="personal_collection"
                 placeholder="e.g. Wayne Gretzky rookie cards"
-                value={profile.personal_collection}
-                onChange={(e) => setProfile((p) => ({ ...p, personal_collection: e.target.value }))}
+                value={editProfile.personal_collection}
+                onChange={(e) => setEditProfile((p) => ({ ...p, personal_collection: e.target.value }))}
                 maxLength={100}
               />
               <p className="text-xs text-muted-foreground">What do you collect most?</p>
@@ -285,15 +256,14 @@ export default function Profile() {
               <Textarea
                 id="bio"
                 placeholder="Tell other collectors a bit about yourself..."
-                value={profile.bio}
-                onChange={(e) => setProfile((p) => ({ ...p, bio: e.target.value }))}
+                value={editProfile.bio}
+                onChange={(e) => setEditProfile((p) => ({ ...p, bio: e.target.value }))}
                 maxLength={160}
                 rows={2}
               />
-              <p className="text-xs text-muted-foreground">{profile.bio.length}/160 characters</p>
+              <p className="text-xs text-muted-foreground">{editProfile.bio.length}/160 characters</p>
             </div>
           </div>
-
 
           {/* Save Button */}
           <Button onClick={handleSave} disabled={saving} className="w-full">
