@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useCollection } from "@/context/CollectionContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowLeft, Shield, TrendingUp, Calendar, Pencil, Trash2, Save, X, Upload, Camera, ChevronLeft, ChevronRight, Trophy, Package, ScrollText, FileText, Loader2 } from "lucide-react";
+import { ArrowLeft, Shield, TrendingUp, Calendar, Pencil, Trash2, Save, X, Trophy, Package, ScrollText, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { ItemImageGallery } from "@/components/ItemDetail/ItemImageGallery";
 import {
   SPORT_OPTIONS,
   CATEGORY_OPTIONS,
@@ -29,40 +30,7 @@ export default function ItemDetail() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-
   const [form, setForm] = useState<CollectionItem | null>(() => item ? { ...item } : null);
-
-  const currentImages = editing ? (form?.images ?? []) : (item?.images ?? []);
-
-  const goToPrev = useCallback(() => {
-    setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : currentImages.length - 1));
-  }, [currentImages.length]);
-
-  const goToNext = useCallback(() => {
-    setSelectedImageIndex((prev) => (prev < currentImages.length - 1 ? prev + 1 : 0));
-  }, [currentImages.length]);
-
-  const handleFiles = (files: FileList | null) => {
-    if (!files || !form) return;
-    Array.from(files).forEach((file) => {
-      if (file.size > 10 * 1024 * 1024) { toast.error(`${file.name} exceeds 10MB limit.`); return; }
-      if (!file.type.startsWith("image/")) { toast.error(`${file.name} is not an image.`); return; }
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        if (e.target?.result) {
-          setForm((prev) => prev ? { ...prev, images: [...prev.images, e.target!.result as string] } : prev);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const removePhoto = (index: number) => {
-    setForm((prev) => prev ? { ...prev, images: prev.images.filter((_, i) => i !== index) } : prev);
-  };
 
   if (!item || !form) {
     return (
@@ -78,6 +46,14 @@ export default function ItemDetail() {
   const gain = item.estimatedValue - item.purchasePrice;
   const gainPercent = item.purchasePrice > 0 ? ((gain / item.purchasePrice) * 100).toFixed(1) : "0.0";
 
+  const hasProvenance =
+    item.purchasedFrom || item.origin || item.previousOwners ||
+    item.eventDetails || item.supportingEvidence;
+
+  const updateField = (field: keyof CollectionItem, value: string | number | string[]) => {
+    setForm((prev) => prev ? { ...prev, [field]: value } : prev);
+  };
+
   const handleSave = async () => {
     if (!form) return;
     setSaving(true);
@@ -86,7 +62,7 @@ export default function ItemDetail() {
       setEditing(false);
       toast.success("Item updated successfully.");
     } catch {
-      // updateItem already shows a toast; nothing more to do here
+      // updateItem already shows a toast
     } finally {
       setSaving(false);
     }
@@ -109,15 +85,7 @@ export default function ItemDetail() {
     setEditing(false);
   };
 
-  const updateField = (field: keyof CollectionItem, value: string | number | string[]) => {
-    setForm((prev) => prev ? { ...prev, [field]: value } : prev);
-  };
-
-  // ── Helpers for concise view-mode rendering ──────────────────────────────────
-
-  const hasProvenance =
-    item.purchasedFrom || item.origin || item.previousOwners ||
-    item.eventDetails || item.supportingEvidence;
+  const currentImages = editing ? (form?.images ?? []) : (item?.images ?? []);
 
   return (
     <div className="container max-w-4xl py-6 pb-24 md:pb-6 space-y-6">
@@ -144,11 +112,7 @@ export default function ItemDetail() {
             </>
           ) : (
             <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => { setForm({ ...item }); setEditing(true); }}
-              >
+              <Button size="sm" variant="outline" onClick={() => { setForm({ ...item }); setEditing(true); }}>
                 <Pencil className="w-4 h-4 mr-1" /> Edit
               </Button>
               <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
@@ -165,14 +129,9 @@ export default function ItemDetail() {
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
-                      Cancel
-                    </Button>
+                    <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
                     <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-                      {deleting
-                        ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Deleting...</>
-                        : "Delete"
-                      }
+                      {deleting ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Deleting...</> : "Delete"}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -183,97 +142,18 @@ export default function ItemDetail() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {/* ── Left column: images ─────────────────────────────────────────────── */}
-        <div className="space-y-4">
-          <div className="relative rounded-xl overflow-hidden bg-secondary aspect-[3/4] group">
-            <img
-              src={currentImages[selectedImageIndex] ?? "/placeholder.svg"}
-              alt={item.name}
-              className="w-full h-full object-cover"
-            />
-            {currentImages.length > 1 && (
-              <>
-                <button
-                  onClick={goToPrev}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-background/80 text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={goToNext}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-background/80 text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-                  {currentImages.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setSelectedImageIndex(i)}
-                      className={`w-2 h-2 rounded-full transition-colors ${
-                        i === selectedImageIndex ? "bg-primary" : "bg-background/60"
-                      }`}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          {currentImages.length > 1 && (
-            <div className="grid grid-cols-4 gap-2">
-              {currentImages.map((img, i) => (
-                <button
-                  key={i}
-                  onClick={() => setSelectedImageIndex(i)}
-                  className={`relative aspect-square rounded-lg overflow-hidden bg-secondary group ring-2 transition-all ${
-                    i === selectedImageIndex ? "ring-primary" : "ring-transparent"
-                  }`}
-                >
-                  <img src={img} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
-                  {editing && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); removePhoto(i); }}
-                      className="absolute top-1 right-1 p-1 rounded-full bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {editing && (
-            <div className="space-y-3">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(e) => handleFiles(e.target.files)}
-              />
-              <Button type="button" variant="outline" className="w-full" onClick={() => fileInputRef.current?.click()}>
-                <Upload className="w-4 h-4 mr-2" /> Upload Photos
-              </Button>
-              <div className="md:hidden">
-                <input
-                  ref={cameraInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={(e) => handleFiles(e.target.files)}
-                />
-                <Button type="button" variant="outline" className="w-full" onClick={() => cameraInputRef.current?.click()}>
-                  <Camera className="w-4 h-4 mr-2" /> Take Photo
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* ── Left column: image gallery ──────────────────────────────────────── */}
+        <ItemImageGallery
+          images={currentImages}
+          itemName={item.name}
+          editing={editing}
+          onAddImage={(url) =>
+            setForm((prev) => prev ? { ...prev, images: [...prev.images, url] } : prev)
+          }
+          onRemoveImage={(i) =>
+            setForm((prev) => prev ? { ...prev, images: prev.images.filter((_, idx) => idx !== i) } : prev)
+          }
+        />
 
         {/* ── Right column: detail cards ──────────────────────────────────────── */}
         <div className="space-y-4">
@@ -289,7 +169,7 @@ export default function ItemDetail() {
             </div>
           )}
 
-          {/* ── Item Details ──────────────────────────────────────────────────── */}
+          {/* Item Details (edit mode) */}
           {editing && (
             <Card>
               <CardHeader className="pb-2">
@@ -322,9 +202,7 @@ export default function ItemDetail() {
                     <Select value={form.sport || undefined} onValueChange={(v) => updateField("sport", v)}>
                       <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
-                        {SPORT_OPTIONS.map((o) => (
-                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                        ))}
+                        {SPORT_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -333,9 +211,7 @@ export default function ItemDetail() {
                     <Select value={form.category || undefined} onValueChange={(v) => updateField("category", v)}>
                       <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
-                        {CATEGORY_OPTIONS.map((o) => (
-                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                        ))}
+                        {CATEGORY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -346,9 +222,7 @@ export default function ItemDetail() {
                     <Select value={form.condition || undefined} onValueChange={(v) => updateField("condition", v)}>
                       <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
-                        {CONDITION_OPTIONS.map((o) => (
-                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                        ))}
+                        {CONDITION_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -361,7 +235,7 @@ export default function ItemDetail() {
             </Card>
           )}
 
-          {/* ── Authentication ────────────────────────────────────────────────── */}
+          {/* Authentication */}
           {(editing || item.gradingCompany || item.certificationNumber) && (
             <Card>
               <CardHeader className="pb-2">
@@ -378,9 +252,7 @@ export default function ItemDetail() {
                         <Select value={form.gradingCompany || undefined} onValueChange={(v) => updateField("gradingCompany", v)}>
                           <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                           <SelectContent>
-                            {GRADING_COMPANY_OPTIONS.map((o) => (
-                              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                            ))}
+                            {GRADING_COMPANY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
@@ -402,37 +274,17 @@ export default function ItemDetail() {
                   </div>
                 ) : (
                   <>
-                    {item.gradingCompany && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Grading Company</span>
-                        <span className="font-medium uppercase">{item.gradingCompany}</span>
-                      </div>
-                    )}
-                    {item.grade && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Grade</span>
-                        <span className="font-bold text-primary mono">{item.grade}</span>
-                      </div>
-                    )}
-                    {item.certificationNumber && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Cert #</span>
-                        <span className="mono text-xs">{item.certificationNumber}</span>
-                      </div>
-                    )}
-                    {item.authenticationCompany && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Authentication</span>
-                        <span className="font-medium">{item.authenticationCompany}</span>
-                      </div>
-                    )}
+                    {item.gradingCompany && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Grading Company</span><span className="font-medium uppercase">{item.gradingCompany}</span></div>}
+                    {item.grade && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Grade</span><span className="font-bold text-primary mono">{item.grade}</span></div>}
+                    {item.certificationNumber && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Cert #</span><span className="mono text-xs">{item.certificationNumber}</span></div>}
+                    {item.authenticationCompany && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Authentication</span><span className="font-medium">{item.authenticationCompany}</span></div>}
                   </>
                 )}
               </CardContent>
             </Card>
           )}
 
-          {/* ── Purchase Information ──────────────────────────────────────────── */}
+          {/* Purchase Information */}
           {editing ? (
             <Card>
               <CardHeader className="pb-2">
@@ -444,14 +296,7 @@ export default function ItemDetail() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Purchase Price</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.purchasePrice}
-                      onChange={(e) => updateField("purchasePrice", Number(e.target.value))}
-                      className="mono"
-                    />
+                    <Input type="number" min="0" step="0.01" value={form.purchasePrice} onChange={(e) => updateField("purchasePrice", Number(e.target.value))} className="mono" />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Date Acquired</Label>
@@ -460,11 +305,7 @@ export default function ItemDetail() {
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Purchased From</Label>
-                  <Input
-                    value={form.purchasedFrom}
-                    onChange={(e) => updateField("purchasedFrom", e.target.value)}
-                    placeholder="Store, auction house, private seller, etc."
-                  />
+                  <Input value={form.purchasedFrom} onChange={(e) => updateField("purchasedFrom", e.target.value)} placeholder="Store, auction house, private seller, etc." />
                 </div>
               </CardContent>
             </Card>
@@ -499,7 +340,7 @@ export default function ItemDetail() {
             </Card>
           )}
 
-          {/* ── Category / Sport (view only) ──────────────────────────────────── */}
+          {/* Category / Sport (view only) */}
           {!editing && (
             <Card>
               <CardContent className="p-5 space-y-3">
@@ -527,7 +368,7 @@ export default function ItemDetail() {
             </Card>
           )}
 
-          {/* ── Provenance & History ──────────────────────────────────────────── */}
+          {/* Provenance & History */}
           {editing ? (
             <Card>
               <CardHeader className="pb-2">
@@ -538,37 +379,19 @@ export default function ItemDetail() {
               <CardContent className="space-y-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Origin</Label>
-                  <Input
-                    value={form.origin}
-                    onChange={(e) => updateField("origin", e.target.value)}
-                    placeholder="Country, region, or source of origin"
-                  />
+                  <Input value={form.origin} onChange={(e) => updateField("origin", e.target.value)} placeholder="Country, region, or source of origin" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Previous Owners</Label>
-                  <Textarea
-                    value={form.previousOwners}
-                    onChange={(e) => updateField("previousOwners", e.target.value)}
-                    placeholder="List known previous owners and dates of ownership"
-                    rows={2}
-                  />
+                  <Textarea value={form.previousOwners} onChange={(e) => updateField("previousOwners", e.target.value)} placeholder="List known previous owners and dates of ownership" rows={2} />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Event Details</Label>
-                  <Input
-                    value={form.eventDetails}
-                    onChange={(e) => updateField("eventDetails", e.target.value)}
-                    placeholder="Game, event, or occasion associated with this item"
-                  />
+                  <Input value={form.eventDetails} onChange={(e) => updateField("eventDetails", e.target.value)} placeholder="Game, event, or occasion associated with this item" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Supporting Evidence</Label>
-                  <Textarea
-                    value={form.supportingEvidence}
-                    onChange={(e) => updateField("supportingEvidence", e.target.value)}
-                    placeholder="COAs, photos, letters, documentation details"
-                    rows={2}
-                  />
+                  <Textarea value={form.supportingEvidence} onChange={(e) => updateField("supportingEvidence", e.target.value)} placeholder="COAs, photos, letters, documentation details" rows={2} />
                 </div>
               </CardContent>
             </Card>
@@ -580,35 +403,15 @@ export default function ItemDetail() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {item.origin && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Origin</span>
-                    <span className="font-medium text-right max-w-[60%]">{item.origin}</span>
-                  </div>
-                )}
-                {item.eventDetails && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Event</span>
-                    <span className="font-medium text-right max-w-[60%]">{item.eventDetails}</span>
-                  </div>
-                )}
-                {item.previousOwners && (
-                  <div className="text-sm space-y-1">
-                    <p className="text-muted-foreground">Previous Owners</p>
-                    <p className="text-foreground whitespace-pre-wrap">{item.previousOwners}</p>
-                  </div>
-                )}
-                {item.supportingEvidence && (
-                  <div className="text-sm space-y-1">
-                    <p className="text-muted-foreground">Supporting Evidence</p>
-                    <p className="text-foreground whitespace-pre-wrap">{item.supportingEvidence}</p>
-                  </div>
-                )}
+                {item.origin && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Origin</span><span className="font-medium text-right max-w-[60%]">{item.origin}</span></div>}
+                {item.eventDetails && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Event</span><span className="font-medium text-right max-w-[60%]">{item.eventDetails}</span></div>}
+                {item.previousOwners && <div className="text-sm space-y-1"><p className="text-muted-foreground">Previous Owners</p><p className="text-foreground whitespace-pre-wrap">{item.previousOwners}</p></div>}
+                {item.supportingEvidence && <div className="text-sm space-y-1"><p className="text-muted-foreground">Supporting Evidence</p><p className="text-foreground whitespace-pre-wrap">{item.supportingEvidence}</p></div>}
               </CardContent>
             </Card>
           ) : null}
 
-          {/* ── Value (edit mode) ─────────────────────────────────────────────── */}
+          {/* Value (edit mode) */}
           {editing && (
             <Card>
               <CardHeader className="pb-2">
@@ -616,23 +419,16 @@ export default function ItemDetail() {
                   <TrendingUp className="w-4 h-4 text-primary" /> Value
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent>
                 <div className="space-y-1">
                   <Label className="text-xs">Estimated Value</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.estimatedValue}
-                    onChange={(e) => updateField("estimatedValue", Number(e.target.value))}
-                    className="mono"
-                  />
+                  <Input type="number" min="0" step="0.01" value={form.estimatedValue} onChange={(e) => updateField("estimatedValue", Number(e.target.value))} className="mono" />
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {/* ── Notes ────────────────────────────────────────────────────────── */}
+          {/* Notes */}
           {(item.notes || editing) && (
             <Card>
               <CardHeader className="pb-2">
@@ -642,11 +438,7 @@ export default function ItemDetail() {
               </CardHeader>
               <CardContent>
                 {editing ? (
-                  <Textarea
-                    value={form.notes}
-                    onChange={(e) => updateField("notes", e.target.value)}
-                    rows={3}
-                  />
+                  <Textarea value={form.notes} onChange={(e) => updateField("notes", e.target.value)} rows={3} />
                 ) : (
                   <p className="text-sm text-muted-foreground">{item.notes}</p>
                 )}
