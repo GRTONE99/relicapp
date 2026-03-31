@@ -235,8 +235,8 @@ Deno.serve(async (req) => {
       const { error } = await resend.emails.send({
         from: FROM_ADDRESS,
         to: [user.email],
-        template_id: 'b1c15d0e-8997-4e33-a296-369c131c23d7',
-        variables: { confirmation_url: confirmationUrl },
+        subject: 'Confirm your Relic Roster account',
+        template: { id: '13393913-60e2-48e3-84a6-246a439ea5df', variables: { confirmation_url: confirmationUrl } },
       } as any)
 
       if (error) console.error('Resend send error:', error)
