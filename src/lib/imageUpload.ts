@@ -1,3 +1,5 @@
+import { supabase } from "@/integrations/supabase/client";
+
 const MAX_DIMENSION = 1920;
 const JPEG_QUALITY = 0.85;
 
@@ -63,13 +65,14 @@ export async function uploadItemImage(
   formData.append("file", new File([compressed], "image.jpg", { type: "image/jpeg" }));
   formData.append("userId", userId);
 
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
   const response = await fetch(`${supabaseUrl}/functions/v1/upload-image`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${supabaseKey}`,
+      Authorization: `Bearer ${token}`,
     },
     body: formData,
   });
