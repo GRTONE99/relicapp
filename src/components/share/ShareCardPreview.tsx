@@ -97,7 +97,7 @@ export function ShareCardPreview({
             <span className="text-3xl font-bold text-primary">{displayName?.[0]?.toUpperCase() || "?"}</span>
           </div>
           <div>
-            <h3 className="font-bold text-xl">{displayName}</h3>
+            <h3 className="font-bold text-xl">{username || displayName}</h3>
             <p className="text-sm text-muted-foreground">Sports memorabilia collector</p>
           </div>
           <div className="flex justify-center gap-8">

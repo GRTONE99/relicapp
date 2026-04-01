@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { ShareCardPreview } from "@/components/share/ShareCardPreview";
 import { ShareButtons } from "@/components/share/ShareButtons";
-import { Package, User, Clock, Share2, Link } from "lucide-react";
+import { Package, User, Clock, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 function slug(...parts: (string | undefined | null)[]) {
@@ -41,9 +41,7 @@ export default function SharePage() {
     : "";
 
   const computedRosterCaption = `My roster has ${items.length} item${items.length !== 1 ? "s" : ""} worth $${totalValue.toLocaleString()} — tracked on Relic Roster (https://relicroster.com)`;
-  const computedProfileCaption = profile?.username
-    ? `Follow ${displayName}'s sports collectibles on Relic Roster: https://relicroster.com/u/${profile.username}`
-    : `Check out ${displayName}'s sports collectibles on Relic Roster! 🏆 https://relicroster.com`;
+  const computedProfileCaption = `I track my collection on Relic Roster (https://relicroster.com)`;
   const computedRecentCaption = `Just added to ${collectionName} on Relic Roster! 🏆 https://relicroster.com`;
 
   const [itemCaption, setItemCaption] = useState(computedItemCaption);
@@ -60,12 +58,6 @@ export default function SharePage() {
   const collectionCardRef = useRef<HTMLDivElement>(null);
   const profileCardRef = useRef<HTMLDivElement>(null);
   const recentCardRef = useRef<HTMLDivElement>(null);
-
-  const copyProfileLink = () => {
-    if (!profile?.username) return;
-    navigator.clipboard.writeText(`https://relicroster.com/u/${profile.username}`);
-    toast.success("Link copied to clipboard!");
-  };
 
   return (
     <div className="container max-w-3xl py-6 pb-24 md:pb-6 space-y-6">
@@ -141,14 +133,8 @@ export default function SharePage() {
 
         {/* Share Profile */}
         <TabsContent value="profile" className="space-y-4">
-          {profile?.username && (
-            <Button variant="outline" className="w-full" onClick={copyProfileLink}>
-              <Link className="w-4 h-4 mr-2" />
-              Copy shareable link — relicroster.com/u/{profile.username}
-            </Button>
-          )}
           <div ref={profileCardRef}>
-            <ShareCardPreview type="profile" totalValue={totalValue} itemCount={items.length} displayName={displayName} collectionName={collectionName} />
+            <ShareCardPreview type="profile" totalValue={totalValue} itemCount={items.length} displayName={displayName} collectionName={collectionName} username={profile?.username} />
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">Caption</label>
