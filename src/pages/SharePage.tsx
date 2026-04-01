@@ -1,14 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { useCollection } from "@/context/CollectionContext";
-import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
 import { ShareCardPreview } from "@/components/share/ShareCardPreview";
 import { ShareButtons } from "@/components/share/ShareButtons";
 import { Package, User, Clock, Share2 } from "lucide-react";
-import { toast } from "sonner";
 
 function slug(...parts: (string | undefined | null)[]) {
   return parts
@@ -30,31 +26,6 @@ export default function SharePage() {
   const displayName = profile?.display_name || "Collector";
   const collectionName = `${displayName}'s Roster`;
 
-  // Computed captions
-  const computedItemCaption = selectedItem
-    ? [
-        selectedItem.player || selectedItem.name,
-        selectedItem.year,
-        selectedItem.estimatedValue ? `Est. $${selectedItem.estimatedValue.toLocaleString()}` : "",
-        `— Check out this item from my roster on Relic Roster (https://relicroster.com)`,
-      ].filter(Boolean).join(" · ")
-    : "";
-
-  const computedRosterCaption = `My roster has ${items.length} item${items.length !== 1 ? "s" : ""} worth $${totalValue.toLocaleString()} — tracked on Relic Roster (https://relicroster.com)`;
-  const computedProfileCaption = `I track my sports memorabilia collection on Relic Roster (https://relicroster.com)`;
-  const recentCount = Math.min(items.length, 3);
-  const computedRecentCaption = `I just added ${recentCount > 1 ? "these amazing pieces" : "this amazing piece"} to my roster on Relic Roster (https://relicroster.com)`;
-
-  const [itemCaption, setItemCaption] = useState(computedItemCaption);
-  const [rosterCaption, setRosterCaption] = useState(computedRosterCaption);
-  const [profileCaption, setProfileCaption] = useState(computedProfileCaption);
-  const [recentCaption, setRecentCaption] = useState(computedRecentCaption);
-
-  // Update item caption when selected item changes
-  useEffect(() => {
-    setItemCaption(computedItemCaption);
-  }, [selectedItemId]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const itemCardRef = useRef<HTMLDivElement>(null);
   const collectionCardRef = useRef<HTMLDivElement>(null);
   const profileCardRef = useRef<HTMLDivElement>(null);
@@ -67,7 +38,7 @@ export default function SharePage() {
         <p className="text-sm text-muted-foreground mt-1">Show off your roster across social media</p>
       </div>
 
-      <Tabs defaultValue={preselectedId ? "item" : "item"} className="space-y-6">
+      <Tabs defaultValue="item" className="space-y-6">
         <TabsList className="grid grid-cols-4 w-full">
           <TabsTrigger value="item" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Package className="w-4 h-4 hidden sm:block" />Item
@@ -108,11 +79,7 @@ export default function SharePage() {
               <div ref={itemCardRef}>
                 <ShareCardPreview type="item" item={selectedItem} collectionName={collectionName} displayName={displayName} username={profile?.username} />
               </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Caption</label>
-                <Textarea value={itemCaption} onChange={(e) => setItemCaption(e.target.value)} rows={3} className="text-sm resize-none" placeholder="Add a caption for your post..." />
-              </div>
-              <ShareButtons cardRef={itemCardRef} caption={itemCaption} filename={slug(selectedItem?.player || selectedItem?.name, selectedItem?.year, selectedItem?.gradingCompany, selectedItem?.grade)} />
+              <ShareButtons cardRef={itemCardRef} filename={slug(selectedItem?.player || selectedItem?.name, selectedItem?.year, selectedItem?.gradingCompany, selectedItem?.grade)} />
             </>
           )}
           {items.length === 0 && (
@@ -125,11 +92,7 @@ export default function SharePage() {
           <div ref={collectionCardRef}>
             <ShareCardPreview type="collection" items={items} totalValue={totalValue} itemCount={items.length} collectionName={collectionName} displayName={displayName} username={profile?.username} />
           </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Caption</label>
-            <Textarea value={rosterCaption} onChange={(e) => setRosterCaption(e.target.value)} rows={3} className="text-sm resize-none" placeholder="Add a caption for your post..." />
-          </div>
-          <ShareButtons cardRef={collectionCardRef} caption={rosterCaption} filename={slug(displayName, "roster")} />
+          <ShareButtons cardRef={collectionCardRef} filename={slug(displayName, "roster")} />
         </TabsContent>
 
         {/* Share Profile */}
@@ -137,11 +100,7 @@ export default function SharePage() {
           <div ref={profileCardRef}>
             <ShareCardPreview type="profile" totalValue={totalValue} itemCount={items.length} displayName={displayName} collectionName={collectionName} username={profile?.username} avatarUrl={profile?.avatar_url} />
           </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Caption</label>
-            <Textarea value={profileCaption} onChange={(e) => setProfileCaption(e.target.value)} rows={3} className="text-sm resize-none" placeholder="Add a caption for your post..." />
-          </div>
-          <ShareButtons cardRef={profileCardRef} caption={profileCaption} filename={slug(displayName, "profile")} />
+          <ShareButtons cardRef={profileCardRef} filename={slug(displayName, "profile")} />
         </TabsContent>
 
         {/* Recent Additions */}
@@ -149,11 +108,7 @@ export default function SharePage() {
           <div ref={recentCardRef}>
             <ShareCardPreview type="recent" items={items} collectionName={collectionName} displayName={displayName} username={profile?.username} />
           </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Caption</label>
-            <Textarea value={recentCaption} onChange={(e) => setRecentCaption(e.target.value)} rows={3} className="text-sm resize-none" placeholder="Add a caption for your post..." />
-          </div>
-          <ShareButtons cardRef={recentCardRef} caption={recentCaption} filename={slug(displayName, "recent-additions")} />
+          <ShareButtons cardRef={recentCardRef} filename={slug(displayName, "recent-additions")} />
         </TabsContent>
       </Tabs>
     </div>
