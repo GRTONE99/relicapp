@@ -83,11 +83,14 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
         try {
           const dataUrl = await toDataUrl(src);
           originals.set(img, src);
-          img.src = dataUrl;
+          // Clear src first so img.complete resets — otherwise mobile Safari
+          // sees complete=true from the old load and skips the onload wait.
+          img.src = "";
           await new Promise<void>((resolve) => {
-            if (img.complete) { resolve(); return; }
             img.onload = () => resolve();
             img.onerror = () => resolve();
+            setTimeout(resolve, 4000); // safety fallback
+            img.src = dataUrl;
           });
         } catch (e) {
           inlineErrors++;
@@ -99,6 +102,9 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
     if (inlineErrors > 0 && originals.size === 0) {
       throw new Error(`CORS_BLOCKED: Could not fetch any images. Make sure your R2 bucket has a CORS policy allowing GET from ${window.location.origin}`);
     }
+
+    // Wait for the browser to paint the new data-URL images before capturing.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
     const dataUrl = await toPng(cardRef.current, {
       pixelRatio: 2,
