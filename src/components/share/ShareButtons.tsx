@@ -74,6 +74,8 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
   try {
     const imgs = Array.from(cardRef.current.querySelectorAll<HTMLImageElement>("img"));
     const originals = new Map<HTMLImageElement, string>();
+    let inlineErrors = 0;
+
     await Promise.all(
       imgs.map(async (img) => {
         const src = img.getAttribute("src") || "";
@@ -88,10 +90,15 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
             img.onerror = () => resolve();
           });
         } catch (e) {
-          console.warn("Share: could not inline image", src, e);
+          inlineErrors++;
+          console.warn("Share: could not inline image (CORS?)", src, e);
         }
       }),
     );
+
+    if (inlineErrors > 0 && originals.size === 0) {
+      throw new Error(`CORS_BLOCKED: Could not fetch any images. Make sure your R2 bucket has a CORS policy allowing GET from ${window.location.origin}`);
+    }
 
     const dataUrl = await toPng(cardRef.current, {
       pixelRatio: 2,
@@ -106,7 +113,7 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
     return await res.blob();
   } catch (err) {
     console.error("Failed to capture share card:", err);
-    return null;
+    throw err;
   }
 }
 
@@ -124,9 +131,20 @@ export function ShareButtons({ cardRef, caption }: ShareButtonsProps) {
   const isMobile = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   const captureBlob = useCallback(async (): Promise<Blob | null> => {
-    const blob = await captureCardAsBlob(cardRef);
-    if (!blob) toast.error("Could not capture image.");
-    return blob;
+    try {
+      const blob = await captureCardAsBlob(cardRef);
+      if (!blob) { toast.error("Could not capture image."); return null; }
+      return blob;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("CORS_BLOCKED")) {
+        toast.error("Images blocked — add a CORS policy to your R2 bucket (see console for details).");
+      } else {
+        toast.error("Could not capture image. Check browser console for details.");
+      }
+      console.error(err);
+      return null;
+    }
   }, [cardRef]);
 
   const downloadBlob = useCallback((blob: Blob) => {
