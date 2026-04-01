@@ -21,20 +21,29 @@ async function fetchAsDataUrl(src: string): Promise<string> {
 async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Promise<Blob | null> {
   if (!cardRef.current) return null;
 
-  const imgs = Array.from(cardRef.current.querySelectorAll<HTMLImageElement>("img"));
-  const originals = new Map<HTMLImageElement, string>();
+  // Clone the card into an off-screen node that React does not own.
+  // This means React can never re-render and reset img.src back to the
+  // proxy URL while we are mid-capture.
+  const clone = cardRef.current.cloneNode(true) as HTMLDivElement;
+  Object.assign(clone.style, {
+    position: "fixed",
+    top: "-99999px",
+    left: "-99999px",
+    zIndex: "-1",
+    pointerEvents: "none",
+  });
+  document.body.appendChild(clone);
 
-  // Convert every image to a data URL so html-to-image makes zero external
-  // fetches during capture — no CORS taint possible on any browser/device.
+  const imgs = Array.from(clone.querySelectorAll<HTMLImageElement>("img"));
+
+  // Replace every image in the clone with a data URL fetched via the proxy.
   await Promise.all(
     imgs.map(async (img) => {
       const src = img.getAttribute("src") || "";
       if (!src || src.startsWith("data:") || src.startsWith("blob:")) return;
       try {
         const dataUrl = await fetchAsDataUrl(src);
-        originals.set(img, src);
         img.src = dataUrl;
-        // Wait for the element to render the new data URL.
         if (!img.complete || img.naturalWidth === 0) {
           await new Promise<void>((resolve) => {
             img.onload = () => resolve();
@@ -44,34 +53,18 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
         }
       } catch (e) {
         console.warn("Share: could not inline image", src, e);
+        img.style.visibility = "hidden";
       }
     }),
   );
 
-  // Two frames so the browser paints before we capture.
-  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-
-  // Hide any img elements that failed to inline (broken src) so toPng
-  // doesn't throw on them, then restore them after capture.
-  const hidden: HTMLImageElement[] = [];
-  imgs.forEach((img) => {
-    const src = img.getAttribute("src") || "";
-    if (!src.startsWith("data:") && !src.startsWith("blob:") && src !== "") {
-      img.style.visibility = "hidden";
-      hidden.push(img);
-    }
-  });
-
   try {
-    // No external fetches needed — all images are data URLs.
-    const dataUrl = await toPng(cardRef.current, { pixelRatio: 2, skipAutoScale: true });
-    hidden.forEach((img) => { img.style.visibility = ""; });
-    originals.forEach((src, img) => { img.src = src; });
+    const dataUrl = await toPng(clone, { pixelRatio: 2, skipAutoScale: true });
+    document.body.removeChild(clone);
     const res = await fetch(dataUrl);
     return await res.blob();
   } catch (err) {
-    hidden.forEach((img) => { img.style.visibility = ""; });
-    originals.forEach((src, img) => { img.src = src; });
+    document.body.removeChild(clone);
     console.error("Failed to capture share card:", err);
     throw err;
   }
