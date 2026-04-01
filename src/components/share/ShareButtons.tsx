@@ -20,34 +20,37 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
   document.body.appendChild(wrapper);
 
   const imgs = Array.from(clone.querySelectorAll<HTMLImageElement>("img"));
+  console.log("[share] imgs found in clone:", imgs.length);
 
   // Pre-fetch every image via the proxy and inline as a data URL so that
   // toPng makes zero external requests — no CORS issues possible.
   await Promise.all(
     imgs.map(async (img) => {
       const src = img.getAttribute("src") || "";
+      console.log("[share] img src:", src.substring(0, 120));
       if (!src || src.startsWith("data:") || src.startsWith("blob:")) return;
       try {
         const res = await fetch(src, { mode: "cors", credentials: "omit" });
+        console.log("[share] proxy response:", res.status, res.headers.get("content-type"));
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const blob = await res.blob();
+        console.log("[share] blob size:", blob.size, "type:", blob.type);
         const dataUrl = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result as string);
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
-        // Remove crossOrigin before setting a data URL — it's unnecessary
-        // on same-origin data: URIs and can cause load failures in some browsers.
+        console.log("[share] dataUrl length:", dataUrl.length, "starts:", dataUrl.substring(0, 40));
         img.removeAttribute("crossorigin");
         img.src = dataUrl;
-        if (!img.complete || img.naturalWidth === 0) {
-          await new Promise<void>((resolve) => {
-            img.onload = () => resolve();
-            img.onerror = () => resolve();
-            setTimeout(resolve, 3000);
-          });
-        }
+        await new Promise<void>((resolve) => {
+          if (img.complete && img.naturalWidth > 0) { resolve(); return; }
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          setTimeout(resolve, 3000);
+        });
+        console.log("[share] img after set — complete:", img.complete, "naturalWidth:", img.naturalWidth);
       } catch (e) {
         console.warn("[share] could not inline image:", src.substring(0, 100), e);
         img.style.visibility = "hidden";
@@ -58,6 +61,7 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
   try {
     // All images are now data URLs — toPng needs no external fetches.
     const dataUrl = await toPng(clone, { pixelRatio: 2 });
+    console.log("[share] toPng succeeded, dataUrl length:", dataUrl.length);
     document.body.removeChild(wrapper);
     const res = await fetch(dataUrl);
     return await res.blob();
