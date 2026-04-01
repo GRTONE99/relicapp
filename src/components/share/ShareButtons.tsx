@@ -57,39 +57,61 @@ async function copyImageToClipboardFromBlob(blob: Blob): Promise<boolean> {
 }
 
 
+async function fetchAsDataUrl(src: string): Promise<string> {
+  // img.src is already a proxy URL — fetch it directly. The proxy returns
+  // Access-Control-Allow-Origin: * so the fetch succeeds on every device.
+  const res = await fetch(src, { mode: "cors", credentials: "omit" });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${src}`);
+  const blob = await res.blob();
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Promise<Blob | null> {
   if (!cardRef.current) return null;
 
-  // Wait for every image in the card to finish loading before capturing.
   const imgs = Array.from(cardRef.current.querySelectorAll<HTMLImageElement>("img"));
+  const originals = new Map<HTMLImageElement, string>();
+
+  // Convert every image to a data URL so html-to-image makes zero external
+  // fetches during capture — no CORS taint possible on any browser/device.
   await Promise.all(
-    imgs.map(
-      (img) =>
-        img.complete
-          ? Promise.resolve()
-          : new Promise<void>((resolve) => {
-              img.onload = () => resolve();
-              img.onerror = () => resolve();
-              setTimeout(resolve, 5000);
-            }),
-    ),
+    imgs.map(async (img) => {
+      const src = img.getAttribute("src") || "";
+      if (!src || src.startsWith("data:") || src.startsWith("blob:")) return;
+      try {
+        const dataUrl = await fetchAsDataUrl(src);
+        originals.set(img, src);
+        img.src = dataUrl;
+        // Wait for the element to render the new data URL.
+        if (!img.complete || img.naturalWidth === 0) {
+          await new Promise<void>((resolve) => {
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+            setTimeout(resolve, 3000);
+          });
+        }
+      } catch (e) {
+        console.warn("Share: could not inline image", src, e);
+      }
+    }),
   );
 
-  // Give the browser two frames to paint before we capture.
+  // Two frames so the browser paints before we capture.
   await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
   try {
-    // Images are served via the proxy (Access-Control-Allow-Origin: *) so
-    // html-to-image can fetch them with CORS without any canvas taint.
-    const dataUrl = await toPng(cardRef.current, {
-      pixelRatio: 2,
-      cacheBust: true,
-      skipAutoScale: true,
-      fetchRequestInit: { mode: "cors", credentials: "omit" },
-    });
+    // No external fetches needed — all images are data URLs.
+    const dataUrl = await toPng(cardRef.current, { pixelRatio: 2, skipAutoScale: true });
+    originals.forEach((src, img) => { img.src = src; });
     const res = await fetch(dataUrl);
     return await res.blob();
   } catch (err) {
+    originals.forEach((src, img) => { img.src = src; });
     console.error("Failed to capture share card:", err);
     throw err;
   }
