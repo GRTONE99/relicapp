@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DatePicker } from "@/components/ui/date-picker";
-import { ArrowLeft, Shield, TrendingUp, Calendar, Pencil, Trash2, Save, X, Trophy, Package, ScrollText, FileText, Loader2 } from "lucide-react";
+import { ArrowLeft, Shield, TrendingUp, Calendar, Pencil, Trash2, Save, X, Trophy, Package, ScrollText, FileText, Loader2, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { ItemImageGallery } from "@/components/ItemDetail/ItemImageGallery";
 import {
@@ -113,6 +113,9 @@ export default function ItemDetail() {
             </>
           ) : (
             <>
+              <Button size="sm" variant="outline" onClick={() => navigate("/share", { state: { itemId: item.id } })}>
+                <Share2 className="w-4 h-4 mr-1" /> Share
+              </Button>
               <Button size="sm" variant="outline" onClick={() => { setForm({ ...item }); setEditing(true); }}>
                 <Pencil className="w-4 h-4 mr-1" /> Edit
               </Button>

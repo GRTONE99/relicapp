@@ -57,6 +57,7 @@ const App = () => (
               <Route path="/item/:id" element={<ProtectedRoute><ItemDetail /></ProtectedRoute>} />
               <Route path="/share" element={<ProtectedRoute><SharePage /></ProtectedRoute>} />
               <Route path="/public" element={<PublicCollection />} />
+              <Route path="/u/:username" element={<PublicCollection />} />
               <Route path="/export" element={<ProtectedRoute><ExportPage /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
