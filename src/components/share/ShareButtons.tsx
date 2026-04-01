@@ -39,15 +39,26 @@ export function ShareButtons({ cardRef, filename = "relic-roster-share" }: Share
     try {
       const blob = await captureCardAsBlob(cardRef);
       if (!blob) { toast.error("Could not capture image."); return; }
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${filename}.png`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success("Image saved!");
-    } catch {
-      toast.error("Could not save image. Check browser console for details.");
+
+      const file = new File([blob], `${filename}.png`, { type: "image/png" });
+
+      // On mobile, use the native share sheet so the user can save directly
+      // to Photos or share anywhere — no download dialog.
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: "Relic Roster" });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${filename}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success("Image saved!");
+      }
+    } catch (err: unknown) {
+      if ((err as { name?: string })?.name !== "AbortError") {
+        toast.error("Could not save image. Check browser console for details.");
+      }
     } finally {
       setIsCapturing(false);
     }
