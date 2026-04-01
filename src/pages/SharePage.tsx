@@ -42,7 +42,7 @@ export default function SharePage() {
 
   const computedRosterCaption = `My roster has ${items.length} item${items.length !== 1 ? "s" : ""} worth $${totalValue.toLocaleString()} — tracked on Relic Roster (https://relicroster.com)`;
   const computedProfileCaption = `I track my sports memorabilia collection on Relic Roster (https://relicroster.com)`;
-  const computedRecentCaption = `Just added to ${collectionName} on Relic Roster! 🏆 https://relicroster.com`;
+  const computedRecentCaption = `I just added this amazing piece to my roster on Relic Roster (https://relicroster.com)`;
 
   const [itemCaption, setItemCaption] = useState(computedItemCaption);
   const [rosterCaption, setRosterCaption] = useState(computedRosterCaption);
@@ -146,7 +146,7 @@ export default function SharePage() {
         {/* Recent Additions */}
         <TabsContent value="recent" className="space-y-4">
           <div ref={recentCardRef}>
-            <ShareCardPreview type="recent" items={items} collectionName={collectionName} displayName={displayName} />
+            <ShareCardPreview type="recent" items={items} collectionName={collectionName} displayName={displayName} username={profile?.username} />
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">Caption</label>

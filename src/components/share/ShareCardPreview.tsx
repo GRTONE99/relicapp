@@ -129,7 +129,7 @@ export function ShareCardPreview({
     <div className="rounded-xl border bg-card overflow-hidden max-w-sm mx-auto">
       <div className="p-5 pb-3">
         <h3 className="font-bold text-lg">Recent Additions</h3>
-        <p className="text-xs text-muted-foreground">{collectionName}</p>
+        <p className="text-xs text-muted-foreground">{username || collectionName}</p>
       </div>
       <div className="space-y-0">
         {recentItems.map((it) => (
