@@ -134,7 +134,7 @@ export default function SharePage() {
         {/* Share Profile */}
         <TabsContent value="profile" className="space-y-4">
           <div ref={profileCardRef}>
-            <ShareCardPreview type="profile" totalValue={totalValue} itemCount={items.length} displayName={displayName} collectionName={collectionName} username={profile?.username} />
+            <ShareCardPreview type="profile" totalValue={totalValue} itemCount={items.length} displayName={displayName} collectionName={collectionName} username={profile?.username} avatarUrl={profile?.avatar_url} />
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">Caption</label>

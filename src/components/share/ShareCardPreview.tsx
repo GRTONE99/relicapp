@@ -18,6 +18,7 @@ export interface ShareCardPreviewProps {
   displayName?: string;
   collectionName?: string;
   username?: string;
+  avatarUrl?: string;
 }
 
 export function ShareCardPreview({
@@ -29,6 +30,7 @@ export function ShareCardPreview({
   displayName = "Collector",
   collectionName = "My Roster",
   username,
+  avatarUrl,
 }: ShareCardPreviewProps) {
   if (type === "item" && item) {
     return (
@@ -93,8 +95,11 @@ export function ShareCardPreview({
     return (
       <div className="rounded-xl border bg-card overflow-hidden max-w-sm mx-auto">
         <div className="p-6 text-center space-y-4">
-          <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-            <span className="text-3xl font-bold text-primary">{displayName?.[0]?.toUpperCase() || "?"}</span>
+          <div className="w-20 h-20 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center mx-auto">
+            {avatarUrl
+              ? <img src={proxyUrl(avatarUrl)} alt={username || displayName} className="w-full h-full object-cover" crossOrigin="anonymous" />
+              : <span className="text-3xl font-bold text-primary">{displayName?.[0]?.toUpperCase() || "?"}</span>
+            }
           </div>
           <div>
             <h3 className="font-bold text-xl">{username || displayName}</h3>
