@@ -36,7 +36,7 @@ export default function SharePage() {
         selectedItem.player || selectedItem.name,
         selectedItem.year,
         selectedItem.estimatedValue ? `Est. $${selectedItem.estimatedValue.toLocaleString()}` : "",
-        `— Just added to my roster on Relic Roster (https://relicroster.com)`,
+        `— Check out this item from my roster on Relic Roster (https://relicroster.com)`,
       ].filter(Boolean).join(" · ")
     : "";
 
