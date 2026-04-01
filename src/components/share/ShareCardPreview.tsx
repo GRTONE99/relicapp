@@ -70,7 +70,7 @@ export function ShareCardPreview({
           ))}
         </div>
         <div className="p-5 space-y-3">
-          <h3 className="font-bold text-lg">{collectionName}</h3>
+          <h3 className="font-bold text-lg">{username ? `${username}'s Roster` : collectionName}</h3>
           <div className="flex gap-6">
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Items</p>

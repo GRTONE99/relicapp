@@ -40,7 +40,7 @@ export default function SharePage() {
       ].filter(Boolean).join(" · ")
     : "";
 
-  const computedRosterCaption = `${collectionName}: ${items.length} items worth $${totalValue.toLocaleString()} — tracked on Relic Roster https://relicroster.com`;
+  const computedRosterCaption = `My roster has ${items.length} item${items.length !== 1 ? "s" : ""} worth $${totalValue.toLocaleString()} — tracked on Relic Roster (https://relicroster.com)`;
   const computedProfileCaption = profile?.username
     ? `Follow ${displayName}'s sports collectibles on Relic Roster: https://relicroster.com/u/${profile.username}`
     : `Check out ${displayName}'s sports collectibles on Relic Roster! 🏆 https://relicroster.com`;
@@ -130,7 +130,7 @@ export default function SharePage() {
         {/* Share Roster */}
         <TabsContent value="collection" className="space-y-4">
           <div ref={collectionCardRef}>
-            <ShareCardPreview type="collection" items={items} totalValue={totalValue} itemCount={items.length} collectionName={collectionName} displayName={displayName} />
+            <ShareCardPreview type="collection" items={items} totalValue={totalValue} itemCount={items.length} collectionName={collectionName} displayName={displayName} username={profile?.username} />
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">Caption</label>
