@@ -103,9 +103,10 @@ export function ShareButtons({ cardRef, filename = "relic-roster-share" }: Share
 
       const file = new File([blob], `${filename}.png`, { type: "image/png" });
 
-      // On mobile use the native share sheet (save to Photos, AirDrop, etc.).
-      // On desktop fall back to a direct download.
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      // On mobile use the native share sheet (save to Photos, etc.).
+      // Desktop macOS also supports navigator.share but we want a direct download there.
+      const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+      if (isMobile && navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: "Relic Roster" });
       } else {
         const url = URL.createObjectURL(blob);
