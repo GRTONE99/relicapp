@@ -1,12 +1,12 @@
 import type { CollectionItem } from "@/context/CollectionContext";
 
-// Force a fresh CORS-enabled fetch by busting the browser cache.
-// Images loaded by the roster don't use crossOrigin, so they're cached
-// without CORS headers. Adding a param makes the browser treat it as a
-// new URL and fetch with the correct CORS headers from R2.
-function corsUrl(url: string) {
+// Route all share-card images through the proxy edge function.
+// This guarantees Access-Control-Allow-Origin: * on every response so that
+// html-to-image can draw them onto a canvas without CORS taint issues.
+const PROXY = "https://fqppcbfhmumqohglbebn.supabase.co/functions/v1/proxy-image";
+function proxyUrl(url: string) {
   if (!url || url.startsWith("data:") || url.startsWith("blob:")) return url;
-  return url + (url.includes("?") ? "&" : "?") + "_cors=1";
+  return `${PROXY}?url=${encodeURIComponent(url)}`;
 }
 
 export interface ShareCardPreviewProps {
@@ -33,7 +33,7 @@ export function ShareCardPreview({
       <div className="rounded-xl border bg-card overflow-hidden max-w-sm mx-auto">
         {item.images[0] && (
           <div className="aspect-[4/3] overflow-hidden bg-secondary">
-            <img src={corsUrl(item.images[0])} alt={item.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
+            <img src={proxyUrl(item.images[0])} alt={item.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
           </div>
         )}
         <div className="p-5 space-y-3">
@@ -61,7 +61,7 @@ export function ShareCardPreview({
         <div className="grid grid-cols-2 gap-0.5 bg-secondary">
           {displayItems.map((it) => (
             <div key={it.id} className="aspect-square overflow-hidden">
-              <img src={corsUrl(it.images[0])} alt={it.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
+              <img src={proxyUrl(it.images[0])} alt={it.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
             </div>
           ))}
         </div>
@@ -126,7 +126,7 @@ export function ShareCardPreview({
         {recentItems.map((it) => (
           <div key={it.id} className="flex items-center gap-3 px-5 py-3 border-t">
             <div className="w-12 h-12 rounded-lg overflow-hidden bg-secondary shrink-0">
-              <img src={corsUrl(it.images[0])} alt={it.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
+              <img src={proxyUrl(it.images[0])} alt={it.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{it.name}</p>

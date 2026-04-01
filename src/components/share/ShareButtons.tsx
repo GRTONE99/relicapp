@@ -56,68 +56,37 @@ async function copyImageToClipboardFromBlob(blob: Blob): Promise<boolean> {
   }
 }
 
-const SUPABASE_URL = "https://fqppcbfhmumqohglbebn.supabase.co";
-
-async function toDataUrl(src: string): Promise<string> {
-  // Proxy through Supabase edge function so CORS is never an issue on any device.
-  const proxyUrl = `${SUPABASE_URL}/functions/v1/proxy-image?url=${encodeURIComponent(src)}&_cb=${Date.now()}`;
-  const res = await fetch(proxyUrl);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const blob = await res.blob();
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
 
 async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Promise<Blob | null> {
   if (!cardRef.current) return null;
+
+  // Wait for every image in the card to finish loading before capturing.
+  const imgs = Array.from(cardRef.current.querySelectorAll<HTMLImageElement>("img"));
+  await Promise.all(
+    imgs.map(
+      (img) =>
+        img.complete
+          ? Promise.resolve()
+          : new Promise<void>((resolve) => {
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+              setTimeout(resolve, 5000);
+            }),
+    ),
+  );
+
+  // Give the browser two frames to paint before we capture.
+  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
   try {
-    const imgs = Array.from(cardRef.current.querySelectorAll<HTMLImageElement>("img"));
-    const originals = new Map<HTMLImageElement, string>();
-    let inlineErrors = 0;
-
-    await Promise.all(
-      imgs.map(async (img) => {
-        const src = img.getAttribute("src") || "";
-        if (!src || src.startsWith("data:") || src.startsWith("blob:")) return;
-        try {
-          const dataUrl = await toDataUrl(src);
-          originals.set(img, src);
-          // Clear src first so img.complete resets — otherwise mobile Safari
-          // sees complete=true from the old load and skips the onload wait.
-          img.src = "";
-          await new Promise<void>((resolve) => {
-            img.onload = () => resolve();
-            img.onerror = () => resolve();
-            setTimeout(resolve, 4000); // safety fallback
-            img.src = dataUrl;
-          });
-        } catch (e) {
-          inlineErrors++;
-          console.warn("Share: could not inline image (CORS?)", src, e);
-        }
-      }),
-    );
-
-    if (inlineErrors > 0 && originals.size === 0) {
-      throw new Error(`CORS_BLOCKED: Could not fetch any images. Make sure your R2 bucket has a CORS policy allowing GET from ${window.location.origin}`);
-    }
-
-    // Wait for the browser to paint the new data-URL images before capturing.
-    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-
+    // Images are served via the proxy (Access-Control-Allow-Origin: *) so
+    // html-to-image can fetch them with CORS without any canvas taint.
     const dataUrl = await toPng(cardRef.current, {
       pixelRatio: 2,
       cacheBust: true,
       skipAutoScale: true,
       fetchRequestInit: { mode: "cors", credentials: "omit" },
     });
-
-    originals.forEach((src, img) => { img.src = src; });
-
     const res = await fetch(dataUrl);
     return await res.blob();
   } catch (err) {
@@ -145,12 +114,7 @@ export function ShareButtons({ cardRef, caption }: ShareButtonsProps) {
       if (!blob) { toast.error("Could not capture image."); return null; }
       return blob;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("CORS_BLOCKED")) {
-        toast.error("Images blocked — add a CORS policy to your R2 bucket (see console for details).");
-      } else {
-        toast.error("Could not capture image. Check browser console for details.");
-      }
+      toast.error("Could not capture image. Check browser console for details.");
       console.error(err);
       return null;
     }
