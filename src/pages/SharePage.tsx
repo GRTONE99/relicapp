@@ -41,7 +41,7 @@ export default function SharePage() {
     : "";
 
   const computedRosterCaption = `My roster has ${items.length} item${items.length !== 1 ? "s" : ""} worth $${totalValue.toLocaleString()} — tracked on Relic Roster (https://relicroster.com)`;
-  const computedProfileCaption = `I track my collection on Relic Roster (https://relicroster.com)`;
+  const computedProfileCaption = `I track my sports memorabilia collection on Relic Roster (https://relicroster.com)`;
   const computedRecentCaption = `Just added to ${collectionName} on Relic Roster! 🏆 https://relicroster.com`;
 
   const [itemCaption, setItemCaption] = useState(computedItemCaption);
