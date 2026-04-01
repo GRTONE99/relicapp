@@ -7,82 +7,52 @@ import { Download, Loader2 } from "lucide-react";
 async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Promise<Blob | null> {
   if (!cardRef.current) return null;
 
-  // Snapshot the card's rendered width so the off-screen clone has
-  // identical dimensions and the layout doesn't collapse.
-  const { width } = cardRef.current.getBoundingClientRect();
+  const card = cardRef.current;
+  const imgs = Array.from(card.querySelectorAll<HTMLImageElement>("img"));
 
-  // Wrapper is absolutely positioned far off-screen with a fixed width.
-  // React never touches this subtree so img.src can't be reset mid-capture.
-  const wrapper = document.createElement("div");
-  wrapper.style.cssText = `position:absolute;top:-9999px;left:0;width:${width}px;`;
-  const clone = cardRef.current.cloneNode(true) as HTMLDivElement;
-  wrapper.appendChild(clone);
-  document.body.appendChild(wrapper);
-
-  const originalImgs = Array.from(cardRef.current.querySelectorAll<HTMLImageElement>("img"));
-  const imgs = Array.from(clone.querySelectorAll<HTMLImageElement>("img"));
-
-  // Fix image container heights in the clone. When the clone is positioned
-  // off-screen, CSS aspect-ratio doesn't compute a height, so overflow:hidden
-  // clips the image to zero. Copy the pixel height from the live card instead.
-  originalImgs.forEach((origImg, i) => {
-    const cloneImg = imgs[i];
-    if (!cloneImg) return;
-    const origContainer = origImg.parentElement as HTMLElement | null;
-    const cloneContainer = cloneImg.parentElement as HTMLElement | null;
-    if (origContainer && cloneContainer) {
-      const { width, height } = origContainer.getBoundingClientRect();
-      if (height > 0) cloneContainer.style.height = `${height}px`;
-      if (width > 0) cloneContainer.style.width = `${width}px`;
-    }
-  });
-
-  // Pre-fetch every image via the proxy and inline as a data URL so that
-  // toPng makes zero external requests — no CORS issues possible.
-  await Promise.all(
+  // Pre-fetch every image and convert to a data URL. This must happen before
+  // we touch the live DOM so we have all data ready for a synchronous swap.
+  const dataUrls = await Promise.all(
     imgs.map(async (img) => {
       const src = img.getAttribute("src") || "";
-      if (!src || src.startsWith("data:") || src.startsWith("blob:")) return;
+      if (!src || src.startsWith("data:") || src.startsWith("blob:")) return null;
       try {
         const res = await fetch(src, { mode: "cors", credentials: "omit" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const blob = await res.blob();
-        const dataUrl = await new Promise<string>((resolve, reject) => {
+        return await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result as string);
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
-        img.src = dataUrl;
-        await new Promise<void>((resolve) => {
-          if (img.complete && img.naturalWidth > 0) { resolve(); return; }
-          img.onload = () => resolve();
-          img.onerror = () => resolve();
-          setTimeout(resolve, 3000);
-        });
       } catch (e) {
-        console.warn("[share] could not inline image:", src.substring(0, 100), e);
-        img.style.visibility = "hidden";
+        console.warn("[share] image prefetch failed:", src.substring(0, 80), e);
+        return null;
       }
-    }),
+    })
   );
 
-  try {
-    // Force a layout reflow so all inline styles are resolved before capture.
-    void wrapper.offsetHeight;
+  // Swap in data URLs synchronously — no await between here and toPng.
+  // html-to-image clones the element at the very start of its serialization
+  // step, so React cannot re-render and reset src values before the clone
+  // is taken. Images that failed to prefetch keep their proxy src so
+  // html-to-image can attempt its own fetch as a fallback.
+  const originalSrcs = imgs.map((img) => img.getAttribute("src") || "");
+  imgs.forEach((img, i) => { if (dataUrls[i]) img.src = dataUrls[i]!; });
 
-    const { width, height } = cardRef.current.getBoundingClientRect();
-    const dataUrl = await toPng(clone, {
+  try {
+    const dataUrl = await toPng(card, {
       pixelRatio: 2,
-      width: Math.round(width),
-      height: Math.round(height),
+      width: card.offsetWidth,
+      height: card.offsetHeight,
       skipFonts: true,
     });
-    document.body.removeChild(wrapper);
+    imgs.forEach((img, i) => { img.src = originalSrcs[i]; });
     const res = await fetch(dataUrl);
     return await res.blob();
   } catch (err) {
-    document.body.removeChild(wrapper);
+    imgs.forEach((img, i) => { img.src = originalSrcs[i]; });
     console.error("[share] toPng failed:", err);
     throw err;
   }

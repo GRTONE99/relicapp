@@ -36,8 +36,8 @@ export function ShareCardPreview({
     return (
       <div className="rounded-xl border bg-card overflow-hidden max-w-sm mx-auto">
         {item.images[0] && (
-          <div className="overflow-hidden bg-secondary" style={{ height: 240 }}>
-            <img src={proxyUrl(item.images[0])} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} crossOrigin="anonymous" />
+          <div className="aspect-[4/3] overflow-hidden bg-secondary">
+            <img src={proxyUrl(item.images[0])} alt={item.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
           </div>
         )}
         <div className="p-5 space-y-3">
@@ -64,9 +64,9 @@ export function ShareCardPreview({
       <div className="rounded-xl border bg-card overflow-hidden max-w-sm mx-auto">
         <div className="grid grid-cols-2 gap-0.5 bg-secondary">
           {displayItems.map((it) => (
-            <div key={it.id} className="overflow-hidden bg-secondary" style={{ height: 160 }}>
+            <div key={it.id} className="aspect-square overflow-hidden bg-secondary">
               {it.images[0] && (
-                <img src={proxyUrl(it.images[0])} alt={it.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} crossOrigin="anonymous" />
+                <img src={proxyUrl(it.images[0])} alt={it.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
               )}
             </div>
           ))}
