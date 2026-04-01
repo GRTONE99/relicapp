@@ -98,7 +98,7 @@ export default function SharePage() {
                       selectedItemId === item.id ? "border-primary" : "border-transparent"
                     }`}
                   >
-                    <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
+                    <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
