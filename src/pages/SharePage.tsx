@@ -35,11 +35,8 @@ export default function SharePage() {
     ? [
         selectedItem.player || selectedItem.name,
         selectedItem.year,
-        selectedItem.gradingCompany && selectedItem.grade
-          ? `${selectedItem.gradingCompany.toUpperCase()} ${selectedItem.grade}`
-          : selectedItem.condition,
         selectedItem.estimatedValue ? `Est. $${selectedItem.estimatedValue.toLocaleString()}` : "",
-        `— ${collectionName} on Relic Roster https://relicroster.com`,
+        `— Just added to my roster on Relic Roster (https://relicroster.com)`,
       ].filter(Boolean).join(" · ")
     : "";
 
