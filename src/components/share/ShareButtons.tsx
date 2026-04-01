@@ -68,6 +68,9 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
   );
 
   try {
+    // Force a layout reflow so all inline styles are resolved before capture.
+    void wrapper.offsetHeight;
+
     const { width, height } = cardRef.current.getBoundingClientRect();
     const dataUrl = await toPng(clone, {
       pixelRatio: 2,

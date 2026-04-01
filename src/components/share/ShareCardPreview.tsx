@@ -36,8 +36,8 @@ export function ShareCardPreview({
     return (
       <div className="rounded-xl border bg-card overflow-hidden max-w-sm mx-auto">
         {item.images[0] && (
-          <div className="aspect-[4/3] overflow-hidden bg-secondary">
-            <img src={proxyUrl(item.images[0])} alt={item.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
+          <div className="relative bg-secondary" style={{ paddingBottom: "75%" }}>
+            <img src={proxyUrl(item.images[0])} alt={item.name} className="absolute inset-0 w-full h-full object-cover" crossOrigin="anonymous" />
           </div>
         )}
         <div className="p-5 space-y-3">
@@ -64,9 +64,9 @@ export function ShareCardPreview({
       <div className="rounded-xl border bg-card overflow-hidden max-w-sm mx-auto">
         <div className="grid grid-cols-2 gap-0.5 bg-secondary">
           {displayItems.map((it) => (
-            <div key={it.id} className="aspect-square overflow-hidden bg-secondary">
+            <div key={it.id} className="relative bg-secondary" style={{ paddingBottom: "100%" }}>
               {it.images[0] && (
-                <img src={proxyUrl(it.images[0])} alt={it.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
+                <img src={proxyUrl(it.images[0])} alt={it.name} className="absolute inset-0 w-full h-full object-cover" crossOrigin="anonymous" />
               )}
             </div>
           ))}
@@ -95,9 +95,9 @@ export function ShareCardPreview({
     return (
       <div className="rounded-xl border bg-card overflow-hidden max-w-sm mx-auto">
         <div className="p-6 text-center space-y-4">
-          <div className="w-20 h-20 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center mx-auto">
+          <div className="rounded-full overflow-hidden bg-primary/10 flex items-center justify-center mx-auto" style={{ width: 80, height: 80 }}>
             {avatarUrl
-              ? <img src={proxyUrl(avatarUrl)} alt={username || displayName} className="w-full h-full object-cover" crossOrigin="anonymous" />
+              ? <img src={proxyUrl(avatarUrl)} alt={username || displayName} style={{ width: 80, height: 80, objectFit: "cover", display: "block" }} crossOrigin="anonymous" />
               : <span className="text-3xl font-bold text-primary">{displayName?.[0]?.toUpperCase() || "?"}</span>
             }
           </div>
