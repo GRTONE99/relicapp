@@ -4,54 +4,68 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
 import { Download, Loader2 } from "lucide-react";
 
+// Load an image fresh with crossOrigin="anonymous" so it is CORS-safe for
+// canvas.drawImage. The cache-buster bypasses any previously-cached opaque
+// (non-CORS) response that would taint the canvas on mobile Safari.
+function loadCorsImage(src: string): Promise<HTMLImageElement> {
+  const bust = src.includes("?") ? "&_cb=" : "?_cb=";
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("load failed"));
+    setTimeout(() => reject(new Error("timeout")), 10000);
+    img.src = src + bust + Date.now();
+  });
+}
+
+async function imgToDataUrl(img: HTMLImageElement): Promise<string | null> {
+  // Try canvas extraction from the already-loaded browser image first.
+  if (img.complete && img.naturalWidth > 0) {
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const ctx = c.getContext("2d");
+    if (ctx) {
+      try {
+        ctx.drawImage(img, 0, 0);
+        return c.toDataURL("image/jpeg", 0.92);
+      } catch { /* tainted canvas — fall through */ }
+    }
+  }
+
+  // Reload fresh with explicit CORS so the canvas draw is guaranteed clean.
+  const src = img.getAttribute("src") || "";
+  if (!src || src.startsWith("data:") || src.startsWith("blob:")) return null;
+  try {
+    const fresh = await loadCorsImage(src);
+    const maxDim = 2048;
+    const scale = Math.min(1, maxDim / Math.max(fresh.naturalWidth, fresh.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(fresh.naturalWidth * scale);
+    c.height = Math.round(fresh.naturalHeight * scale);
+    const ctx = c.getContext("2d")!;
+    ctx.drawImage(fresh, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.92);
+  } catch (e) {
+    console.warn("[share] could not load image:", src.substring(0, 80), e);
+    return null;
+  }
+}
+
 async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Promise<Blob | null> {
   if (!cardRef.current) return null;
   const card = cardRef.current;
   const { width, height } = card.getBoundingClientRect();
 
-  // Extract data URLs from the live card's images. These are already loaded
-  // in the browser with crossOrigin="anonymous" via the CORS proxy, so we
-  // can draw them to a canvas without any network request.
+  // Collect data URLs for every image in the live card.
   const liveImgs = Array.from(card.querySelectorAll<HTMLImageElement>("img"));
-  const dataUrls = await Promise.all(
-    liveImgs.map(async (img) => {
-      // Primary: canvas draw — zero latency, no fetch, works offline
-      if (img.complete && img.naturalWidth > 0) {
-        const c = document.createElement("canvas");
-        c.width = img.naturalWidth;
-        c.height = img.naturalHeight;
-        const ctx = c.getContext("2d");
-        if (ctx) {
-          try {
-            ctx.drawImage(img, 0, 0);
-            return c.toDataURL("image/jpeg", 0.92);
-          } catch { /* canvas tainted, fall through to fetch */ }
-        }
-      }
-      // Fallback: fetch via proxy URL
-      const src = img.getAttribute("src") || "";
-      if (!src || src.startsWith("data:") || src.startsWith("blob:")) return null;
-      try {
-        const res = await fetch(src, { mode: "cors", credentials: "omit" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const blob = await res.blob();
-        return await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-      } catch (e) {
-        console.warn("[share] image unavailable:", src.substring(0, 80), e);
-        return null;
-      }
-    })
-  );
+  const dataUrls = await Promise.all(liveImgs.map(imgToDataUrl));
 
   // Clone into a fixed-position invisible overlay. position:fixed ensures
-  // that CSS layout (aspect-ratio, flex, etc.) computes correctly on mobile
-  // Safari. position:absolute with a large negative offset causes Safari to
-  // skip layout/paint for those elements.
+  // CSS layout (aspect-ratio, flex, etc.) computes correctly on mobile Safari.
+  // position:absolute with a large negative offset causes Safari to skip
+  // layout/paint for those elements.
   const wrapper = document.createElement("div");
   wrapper.style.cssText = [
     "position:fixed",
