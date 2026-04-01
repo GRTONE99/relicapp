@@ -29,11 +29,7 @@ export function PhotoUploadCard({
     Array.from(files).forEach((file) => {
       if (file.size > 10 * 1024 * 1024) { toast.error(`${file.name} exceeds 10MB limit.`); return; }
       if (!file.type.startsWith("image/")) { toast.error(`${file.name} is not an image.`); return; }
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        if (e.target?.result) onAddPhoto(e.target.result as string);
-      };
-      reader.readAsDataURL(file);
+      onAddPhoto(URL.createObjectURL(file));
     });
   };
 

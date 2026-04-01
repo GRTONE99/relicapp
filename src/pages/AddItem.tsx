@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,11 @@ export default function AddItem() {
   const navigate = useNavigate();
   const { addItem, isAtFreeLimit, items } = useCollection();
   const [photos, setPhotos] = useState<string[]>([]);
+
+  // Revoke blob: URLs when component unmounts to free memory
+  useEffect(() => {
+    return () => { photos.forEach((p) => { if (p.startsWith("blob:")) URL.revokeObjectURL(p); }); };
+  }, [photos]);
   const [detecting, setDetecting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showLimitDialog, setShowLimitDialog] = useState(false);
@@ -163,7 +168,10 @@ export default function AddItem() {
         photos={photos}
         detecting={detecting}
         onAddPhoto={(url) => setPhotos((prev) => [...prev, url])}
-        onRemovePhoto={(i) => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
+        onRemovePhoto={(i) => setPhotos((prev) => {
+          if (prev[i]?.startsWith("blob:")) URL.revokeObjectURL(prev[i]);
+          return prev.filter((_, idx) => idx !== i);
+        })}
         onAiDetect={handleAiDetect}
       />
 

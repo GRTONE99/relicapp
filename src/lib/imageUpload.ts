@@ -1,7 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 
-const MAX_DIMENSION = 1920;
-const JPEG_QUALITY = 0.85;
+const MAX_DIMENSION = 1200;
+const JPEG_QUALITY = 0.80;
+const MAX_UNCOMPRESSED_SIZE = 500 * 1024; // force compress if > 500KB regardless of dimensions
 
 async function compressImage(blob: Blob): Promise<Blob> {
   return new Promise((resolve) => {
@@ -12,7 +13,8 @@ async function compressImage(blob: Blob): Promise<Blob> {
       URL.revokeObjectURL(objectUrl);
       let { width, height } = img;
 
-      if (width <= MAX_DIMENSION && height <= MAX_DIMENSION) {
+      const needsResize = width > MAX_DIMENSION || height > MAX_DIMENSION;
+      if (!needsResize && blob.size <= MAX_UNCOMPRESSED_SIZE) {
         resolve(blob);
         return;
       }
