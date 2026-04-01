@@ -6,14 +6,29 @@ import { Download, Loader2 } from "lucide-react";
 
 async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Promise<Blob | null> {
   if (!cardRef.current) return null;
-
   const card = cardRef.current;
-  const imgs = Array.from(card.querySelectorAll<HTMLImageElement>("img"));
+  const { width, height } = card.getBoundingClientRect();
 
-  // Pre-fetch every image and convert to a data URL. This must happen before
-  // we touch the live DOM so we have all data ready for a synchronous swap.
+  // Extract data URLs from the live card's images. These are already loaded
+  // in the browser with crossOrigin="anonymous" via the CORS proxy, so we
+  // can draw them to a canvas without any network request.
+  const liveImgs = Array.from(card.querySelectorAll<HTMLImageElement>("img"));
   const dataUrls = await Promise.all(
-    imgs.map(async (img) => {
+    liveImgs.map(async (img) => {
+      // Primary: canvas draw — zero latency, no fetch, works offline
+      if (img.complete && img.naturalWidth > 0) {
+        const c = document.createElement("canvas");
+        c.width = img.naturalWidth;
+        c.height = img.naturalHeight;
+        const ctx = c.getContext("2d");
+        if (ctx) {
+          try {
+            ctx.drawImage(img, 0, 0);
+            return c.toDataURL("image/jpeg", 0.92);
+          } catch { /* canvas tainted, fall through to fetch */ }
+        }
+      }
+      // Fallback: fetch via proxy URL
       const src = img.getAttribute("src") || "";
       if (!src || src.startsWith("data:") || src.startsWith("blob:")) return null;
       try {
@@ -27,32 +42,52 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
           reader.readAsDataURL(blob);
         });
       } catch (e) {
-        console.warn("[share] image prefetch failed:", src.substring(0, 80), e);
+        console.warn("[share] image unavailable:", src.substring(0, 80), e);
         return null;
       }
     })
   );
 
-  // Swap in data URLs synchronously — no await between here and toPng.
-  // html-to-image clones the element at the very start of its serialization
-  // step, so React cannot re-render and reset src values before the clone
-  // is taken. Images that failed to prefetch keep their proxy src so
-  // html-to-image can attempt its own fetch as a fallback.
-  const originalSrcs = imgs.map((img) => img.getAttribute("src") || "");
-  imgs.forEach((img, i) => { if (dataUrls[i]) img.src = dataUrls[i]!; });
+  // Clone into a fixed-position invisible overlay. position:fixed ensures
+  // that CSS layout (aspect-ratio, flex, etc.) computes correctly on mobile
+  // Safari. position:absolute with a large negative offset causes Safari to
+  // skip layout/paint for those elements.
+  const wrapper = document.createElement("div");
+  wrapper.style.cssText = [
+    "position:fixed",
+    "top:0",
+    "left:0",
+    `width:${Math.round(width)}px`,
+    "opacity:0",
+    "z-index:-9999",
+    "pointer-events:none",
+    "overflow:hidden",
+  ].join(";");
+  const clone = card.cloneNode(true) as HTMLDivElement;
+  wrapper.appendChild(clone);
+  document.body.appendChild(wrapper);
+  void wrapper.offsetHeight; // force layout
+
+  const cloneImgs = Array.from(clone.querySelectorAll<HTMLImageElement>("img"));
+  cloneImgs.forEach((img, i) => {
+    if (dataUrls[i]) img.src = dataUrls[i]!;
+    else img.style.visibility = "hidden";
+  });
+  void wrapper.offsetHeight; // force layout after src swap
 
   try {
-    const dataUrl = await toPng(card, {
+    const cloneRect = clone.getBoundingClientRect();
+    const dataUrl = await toPng(clone, {
       pixelRatio: 2,
-      width: card.offsetWidth,
-      height: card.offsetHeight,
+      width: Math.round(cloneRect.width || width),
+      height: Math.round(cloneRect.height || height),
       skipFonts: true,
     });
-    imgs.forEach((img, i) => { img.src = originalSrcs[i]; });
+    document.body.removeChild(wrapper);
     const res = await fetch(dataUrl);
     return await res.blob();
   } catch (err) {
-    imgs.forEach((img, i) => { img.src = originalSrcs[i]; });
+    document.body.removeChild(wrapper);
     console.error("[share] toPng failed:", err);
     throw err;
   }
@@ -76,8 +111,6 @@ export function ShareButtons({ cardRef, filename = "relic-roster-share" }: Share
 
       const file = new File([blob], `${filename}.png`, { type: "image/png" });
 
-      // On mobile use the native share sheet (save to Photos, etc.).
-      // Desktop macOS also supports navigator.share but we want a direct download there.
       const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
       if (isMobile && navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: "Relic Roster" });
