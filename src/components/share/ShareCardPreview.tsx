@@ -60,8 +60,10 @@ export function ShareCardPreview({
       <div className="rounded-xl border bg-card overflow-hidden max-w-sm mx-auto">
         <div className="grid grid-cols-2 gap-0.5 bg-secondary">
           {displayItems.map((it) => (
-            <div key={it.id} className="aspect-square overflow-hidden">
-              <img src={proxyUrl(it.images[0])} alt={it.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
+            <div key={it.id} className="aspect-square overflow-hidden bg-secondary">
+              {it.images[0] && (
+                <img src={proxyUrl(it.images[0])} alt={it.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
+              )}
             </div>
           ))}
         </div>
@@ -126,7 +128,9 @@ export function ShareCardPreview({
         {recentItems.map((it) => (
           <div key={it.id} className="flex items-center gap-3 px-5 py-3 border-t">
             <div className="w-12 h-12 rounded-lg overflow-hidden bg-secondary shrink-0">
-              <img src={proxyUrl(it.images[0])} alt={it.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
+              {it.images[0] && (
+                <img src={proxyUrl(it.images[0])} alt={it.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{it.name}</p>

@@ -51,13 +51,26 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
   // Two frames so the browser paints before we capture.
   await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
+  // Hide any img elements that failed to inline (broken src) so toPng
+  // doesn't throw on them, then restore them after capture.
+  const hidden: HTMLImageElement[] = [];
+  imgs.forEach((img) => {
+    const src = img.getAttribute("src") || "";
+    if (!src.startsWith("data:") && !src.startsWith("blob:") && src !== "") {
+      img.style.visibility = "hidden";
+      hidden.push(img);
+    }
+  });
+
   try {
     // No external fetches needed — all images are data URLs.
     const dataUrl = await toPng(cardRef.current, { pixelRatio: 2, skipAutoScale: true });
+    hidden.forEach((img) => { img.style.visibility = ""; });
     originals.forEach((src, img) => { img.src = src; });
     const res = await fetch(dataUrl);
     return await res.blob();
   } catch (err) {
+    hidden.forEach((img) => { img.style.visibility = ""; });
     originals.forEach((src, img) => { img.src = src; });
     console.error("Failed to capture share card:", err);
     throw err;
