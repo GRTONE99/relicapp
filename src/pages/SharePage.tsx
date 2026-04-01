@@ -113,7 +113,7 @@ export default function SharePage() {
           {selectedItem && (
             <>
               <div ref={itemCardRef}>
-                <ShareCardPreview type="item" item={selectedItem} collectionName={collectionName} displayName={displayName} />
+                <ShareCardPreview type="item" item={selectedItem} collectionName={collectionName} displayName={displayName} username={profile?.username} />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Caption</label>

@@ -17,6 +17,7 @@ export interface ShareCardPreviewProps {
   itemCount?: number;
   displayName?: string;
   collectionName?: string;
+  username?: string;
 }
 
 export function ShareCardPreview({
@@ -27,6 +28,7 @@ export function ShareCardPreview({
   itemCount,
   displayName = "Collector",
   collectionName = "My Roster",
+  username,
 }: ShareCardPreviewProps) {
   if (type === "item" && item) {
     return (
@@ -46,7 +48,7 @@ export function ShareCardPreview({
             <p className="text-2xl font-bold mono text-primary">${item.estimatedValue.toLocaleString()}</p>
           </div>
           <div className="border-t pt-3 space-y-0.5">
-            <p className="text-xs text-muted-foreground">From <span className="font-medium text-foreground">{collectionName}</span></p>
+            <p className="text-xs text-muted-foreground">From <span className="font-medium text-foreground">{username ? `@${username}` : collectionName}</span></p>
             <p className="text-xs text-muted-foreground">Tracked on <a href="https://relicroster.com" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline">Relic Roster</a></p>
           </div>
         </div>
