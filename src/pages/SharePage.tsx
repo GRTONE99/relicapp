@@ -92,7 +92,7 @@ export default function SharePage() {
           <div ref={collectionCardRef}>
             <ShareCardPreview type="collection" items={items} totalValue={totalValue} itemCount={items.length} collectionName={collectionName} displayName={displayName} username={profile?.username} />
           </div>
-          <ShareButtons cardRef={collectionCardRef} filename={slug(displayName, "roster")} />
+          <ShareButtons cardRef={collectionCardRef} filename={slug(profile?.username, "roster")} />
         </TabsContent>
 
         {/* Share Profile */}
@@ -100,7 +100,7 @@ export default function SharePage() {
           <div ref={profileCardRef}>
             <ShareCardPreview type="profile" totalValue={totalValue} itemCount={items.length} displayName={displayName} collectionName={collectionName} username={profile?.username} avatarUrl={profile?.avatar_url} />
           </div>
-          <ShareButtons cardRef={profileCardRef} filename={slug(displayName, "profile")} />
+          <ShareButtons cardRef={profileCardRef} filename={slug(profile?.username, "profile")} />
         </TabsContent>
 
         {/* Recent Additions */}
@@ -108,7 +108,7 @@ export default function SharePage() {
           <div ref={recentCardRef}>
             <ShareCardPreview type="recent" items={items} collectionName={collectionName} displayName={displayName} username={profile?.username} />
           </div>
-          <ShareButtons cardRef={recentCardRef} filename={slug(displayName, "recent-additions")} />
+          <ShareButtons cardRef={recentCardRef} filename={slug(profile?.username, "recent-additions")} />
         </TabsContent>
       </Tabs>
     </div>
