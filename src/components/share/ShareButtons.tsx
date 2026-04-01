@@ -56,9 +56,12 @@ async function copyImageToClipboardFromBlob(blob: Blob): Promise<boolean> {
   }
 }
 
+const SUPABASE_URL = "https://fqppcbfhmumqohglbebn.supabase.co";
+
 async function toDataUrl(src: string): Promise<string> {
-  const url = src + (src.includes("?") ? "&" : "?") + "_cb=" + Date.now();
-  const res = await fetch(url, { mode: "cors", credentials: "omit" });
+  // Proxy through Supabase edge function so CORS is never an issue on any device.
+  const proxyUrl = `${SUPABASE_URL}/functions/v1/proxy-image?url=${encodeURIComponent(src)}&_cb=${Date.now()}`;
+  const res = await fetch(proxyUrl);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const blob = await res.blob();
   return new Promise((resolve, reject) => {
