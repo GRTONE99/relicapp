@@ -85,17 +85,12 @@ serve(async (req) => {
     const body = await file.arrayBuffer();
     const uploadUrl = new URL(`https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET_NAME}/${fileName}`);
 
-    console.log("Uploading to:", uploadUrl.toString());
-    console.log("Key ID prefix:", R2_ACCESS_KEY_ID.slice(0, 8));
-    console.log("Secret length:", R2_SECRET_ACCESS_KEY.length);
-
     const headers = await signedHeaders("PUT", uploadUrl, body, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY);
 
     const response = await fetch(uploadUrl.toString(), { method: "PUT", headers, body });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("R2 response headers:", JSON.stringify(Object.fromEntries(response.headers)));
       throw new Error(`R2 upload failed (${response.status}): ${errorText.slice(0, 300)}`);
     }
 
