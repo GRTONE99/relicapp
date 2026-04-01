@@ -6,7 +6,9 @@ const CORS = {
   "Access-Control-Allow-Headers": "*",
 };
 
-const ALLOWED_HOST = "r2.dev";
+// Allow both R2 and Supabase Storage — items uploaded before the R2
+// migration are stored at *.supabase.co/storage/…
+const ALLOWED_HOSTS = ["r2.dev", "supabase.co"];
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -27,7 +29,7 @@ serve(async (req) => {
     return new Response("Invalid url", { status: 400, headers: CORS });
   }
 
-  if (!parsed.hostname.endsWith(ALLOWED_HOST)) {
+  if (!ALLOWED_HOSTS.some((h) => parsed.hostname.endsWith(h))) {
     return new Response("URL not allowed", { status: 403, headers: CORS });
   }
 
