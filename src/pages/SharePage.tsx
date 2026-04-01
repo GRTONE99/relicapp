@@ -10,6 +10,15 @@ import { ShareButtons } from "@/components/share/ShareButtons";
 import { Package, User, Clock, Share2, Link } from "lucide-react";
 import { toast } from "sonner";
 
+function slug(...parts: (string | undefined | null)[]) {
+  return parts
+    .filter(Boolean)
+    .join("-")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || "relic-roster";
+}
+
 export default function SharePage() {
   const { items, getTotalValue, profile } = useCollection();
   const location = useLocation();
@@ -113,7 +122,7 @@ export default function SharePage() {
                 <label className="text-sm font-medium">Caption</label>
                 <Textarea value={itemCaption} onChange={(e) => setItemCaption(e.target.value)} rows={3} className="text-sm resize-none" placeholder="Add a caption for your post..." />
               </div>
-              <ShareButtons cardRef={itemCardRef} caption={itemCaption} />
+              <ShareButtons cardRef={itemCardRef} caption={itemCaption} filename={slug(selectedItem?.player || selectedItem?.name, selectedItem?.year, selectedItem?.gradingCompany, selectedItem?.grade)} />
             </>
           )}
           {items.length === 0 && (
@@ -130,7 +139,7 @@ export default function SharePage() {
             <label className="text-sm font-medium">Caption</label>
             <Textarea value={rosterCaption} onChange={(e) => setRosterCaption(e.target.value)} rows={3} className="text-sm resize-none" placeholder="Add a caption for your post..." />
           </div>
-          <ShareButtons cardRef={collectionCardRef} caption={rosterCaption} />
+          <ShareButtons cardRef={collectionCardRef} caption={rosterCaption} filename={slug(displayName, "roster")} />
         </TabsContent>
 
         {/* Share Profile */}
@@ -148,7 +157,7 @@ export default function SharePage() {
             <label className="text-sm font-medium">Caption</label>
             <Textarea value={profileCaption} onChange={(e) => setProfileCaption(e.target.value)} rows={3} className="text-sm resize-none" placeholder="Add a caption for your post..." />
           </div>
-          <ShareButtons cardRef={profileCardRef} caption={profileCaption} />
+          <ShareButtons cardRef={profileCardRef} caption={profileCaption} filename={slug(displayName, "profile")} />
         </TabsContent>
 
         {/* Recent Additions */}
@@ -160,7 +169,7 @@ export default function SharePage() {
             <label className="text-sm font-medium">Caption</label>
             <Textarea value={recentCaption} onChange={(e) => setRecentCaption(e.target.value)} rows={3} className="text-sm resize-none" placeholder="Add a caption for your post..." />
           </div>
-          <ShareButtons cardRef={recentCardRef} caption={recentCaption} />
+          <ShareButtons cardRef={recentCardRef} caption={recentCaption} filename={slug(displayName, "recent-additions")} />
         </TabsContent>
       </Tabs>
     </div>

@@ -68,10 +68,10 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
 
 interface ShareButtonsProps {
   cardRef: React.RefObject<HTMLDivElement>;
-  caption?: string;
+  filename?: string;
 }
 
-export function ShareButtons({ cardRef }: ShareButtonsProps) {
+export function ShareButtons({ cardRef, filename = "relic-roster-share" }: ShareButtonsProps) {
   const [isCapturing, setIsCapturing] = useState(false);
 
   const handleSave = useCallback(async () => {
@@ -82,7 +82,7 @@ export function ShareButtons({ cardRef }: ShareButtonsProps) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "relic-roster-share.png";
+      a.download = `${filename}.png`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success("Image saved!");
