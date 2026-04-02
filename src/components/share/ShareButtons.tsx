@@ -4,106 +4,82 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
 import { Download, Loader2 } from "lucide-react";
 
-// Extract the original image URL from a proxy URL, or return src unchanged.
-function originalSrc(src: string): string {
-  try {
-    const encoded = new URL(src).searchParams.get("url");
-    if (encoded) return decodeURIComponent(encoded);
-  } catch { /* not a proxy URL */ }
-  return src;
-}
-
-async function fetchAsDataUrl(url: string): Promise<string> {
-  const sep = url.includes("?") ? "&" : "?";
-  const res = await fetch(url + sep + "_cb=" + Date.now(), {
-    mode: "cors",
-    credentials: "omit",
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const blob = await res.blob();
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
-
-async function imgToDataUrl(img: HTMLImageElement): Promise<string | null> {
-  const proxied = img.getAttribute("src") || "";
-  if (!proxied || proxied.startsWith("data:") || proxied.startsWith("blob:")) return null;
-
-  const direct = originalSrc(proxied);
-
-  // 1. Canvas draw from the already-loaded DOM image (zero network).
-  if (img.complete && img.naturalWidth > 0) {
-    try {
-      const scale = Math.min(1, 1200 / Math.max(img.naturalWidth, img.naturalHeight));
-      const c = document.createElement("canvas");
-      c.width = Math.round(img.naturalWidth * scale);
-      c.height = Math.round(img.naturalHeight * scale);
-      const ctx = c.getContext("2d")!;
-      ctx.drawImage(img, 0, 0, c.width, c.height);
-      const dataUrl = c.toDataURL("image/jpeg", 0.92);
-      if (dataUrl && dataUrl.length > 100) return dataUrl;
-    } catch { /* canvas tainted — fall through */ }
-  }
-
-  // 2. Fetch the original URL directly (R2 / Supabase Storage have CORS for
-  //    this domain). Bypasses the proxy for one less network hop.
-  if (direct !== proxied) {
-    try { return await fetchAsDataUrl(direct); } catch { /* fall through */ }
-  }
-
-  // 3. Fetch via the proxy as a final fallback.
-  try { return await fetchAsDataUrl(proxied); } catch { /* fall through */ }
-
-  console.warn("[share] all methods failed for:", proxied.substring(0, 80));
-  return null;
-}
-
 async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Promise<Blob | null> {
   if (!cardRef.current) return null;
   const card = cardRef.current;
   const { width, height } = card.getBoundingClientRect();
 
-  const liveImgs = Array.from(card.querySelectorAll<HTMLImageElement>("img"));
-
-  // Wait for any images that are still fetching from the proxy.
-  await Promise.all(
-    liveImgs.map(img =>
-      img.complete
-        ? Promise.resolve()
-        : new Promise<void>(resolve => {
-            img.addEventListener("load",  () => resolve(), { once: true });
-            img.addEventListener("error", () => resolve(), { once: true });
-            setTimeout(resolve, 10_000);
-          })
-    )
-  );
-
-  // Build data URLs for every image.
-  const dataUrls = await Promise.all(liveImgs.map(imgToDataUrl));
-
-  // Clone into a fixed-position invisible overlay so that CSS layout
-  // (aspect-ratio, flex, etc.) computes correctly on mobile Safari.
+  // Clone into a fixed-position invisible overlay so CSS layout computes
+  // correctly on mobile Safari (aspect-ratio, flex, etc.).
   const wrapper = document.createElement("div");
   wrapper.style.cssText = [
-    "position:fixed",
-    "top:0",
-    "left:0",
+    "position:fixed", "top:0", "left:0",
     `width:${Math.round(width)}px`,
-    "opacity:0",
-    "z-index:-9999",
-    "pointer-events:none",
-    "overflow:hidden",
+    "opacity:0", "z-index:-9999", "pointer-events:none", "overflow:hidden",
   ].join(";");
   const clone = card.cloneNode(true) as HTMLDivElement;
   wrapper.appendChild(clone);
   document.body.appendChild(wrapper);
-  void wrapper.offsetHeight;
 
+  // Force every image in the clone to reload with crossOrigin set BEFORE src.
+  // On mobile Safari, React sometimes sets the src attribute before crossorigin,
+  // causing the browser to start a non-CORS load. That taints the canvas and
+  // the image is unusable for capture. Reloading from the clone (in a
+  // position:fixed element) with crossOrigin first guarantees a CORS-clean load.
   const cloneImgs = Array.from(clone.querySelectorAll<HTMLImageElement>("img"));
+  await Promise.all(
+    cloneImgs.map(img => {
+      const src = img.getAttribute("src") || "";
+      if (!src || src.startsWith("data:") || src.startsWith("blob:")) return;
+      return new Promise<void>(resolve => {
+        img.removeAttribute("crossorigin");
+        img.crossOrigin = "anonymous"; // ← must be set BEFORE src
+        img.onload  = () => resolve();
+        img.onerror = () => resolve();
+        img.src = ""; // reset so the browser treats next assignment as new load
+        img.src = src;
+        setTimeout(resolve, 10_000);
+      });
+    })
+  );
+
+  // Extract each loaded image as a data URL via canvas.
+  const dataUrls = await Promise.all(
+    cloneImgs.map(async img => {
+      // Canvas draw — works because we just forced a CORS-safe load above.
+      if (img.complete && img.naturalWidth > 0) {
+        try {
+          const scale = Math.min(1, 1200 / Math.max(img.naturalWidth, img.naturalHeight));
+          const c = document.createElement("canvas");
+          c.width  = Math.round(img.naturalWidth  * scale);
+          c.height = Math.round(img.naturalHeight * scale);
+          c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+          const dataUrl = c.toDataURL("image/jpeg", 0.92);
+          if (dataUrl.length > 100) return dataUrl;
+        } catch { /* canvas still tainted — fall to fetch */ }
+      }
+
+      // Fetch fallback via proxy (catches images that failed to load above).
+      const src = img.getAttribute("src") || "";
+      if (!src) return null;
+      try {
+        const res = await fetch(src, { mode: "cors", credentials: "omit" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        return await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (e) {
+        console.warn("[share] image unavailable:", src.substring(0, 80), e);
+        return null;
+      }
+    })
+  );
+
+  // Swap in data URLs (remove crossorigin so html-to-image won't re-fetch).
   cloneImgs.forEach((img, i) => {
     if (dataUrls[i]) {
       img.removeAttribute("crossorigin");
@@ -115,16 +91,15 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
   void wrapper.offsetHeight;
 
   try {
-    const cloneRect = clone.getBoundingClientRect();
+    const r = clone.getBoundingClientRect();
     const dataUrl = await toPng(clone, {
       pixelRatio: 2,
-      width: Math.round(cloneRect.width || width),
-      height: Math.round(cloneRect.height || height),
+      width:  Math.round(r.width  || width),
+      height: Math.round(r.height || height),
       skipFonts: true,
     });
     document.body.removeChild(wrapper);
-    const res = await fetch(dataUrl);
-    return await res.blob();
+    return await (await fetch(dataUrl)).blob();
   } catch (err) {
     document.body.removeChild(wrapper);
     console.error("[share] toPng failed:", err);
