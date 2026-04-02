@@ -90,6 +90,20 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
   });
   void wrapper.offsetHeight;
 
+  // Bake aspect-ratio → explicit px height so html-to-image's SVG foreignObject
+  // can render them (SVG does not evaluate CSS aspect-ratio, so containers get 0 height).
+  clone.querySelectorAll<HTMLElement>("*").forEach(el => {
+    const ar = window.getComputedStyle(el).getPropertyValue("aspect-ratio");
+    if (ar && ar !== "auto" && ar !== "none" && ar !== "") {
+      const h = Math.round(el.getBoundingClientRect().height);
+      if (h > 0) {
+        el.style.setProperty("aspect-ratio", "auto", "important");
+        el.style.setProperty("height", `${h}px`, "important");
+      }
+    }
+  });
+  void wrapper.offsetHeight; // reflow after baking heights
+
   try {
     const r = clone.getBoundingClientRect();
     const dataUrl = await toPng(clone, {

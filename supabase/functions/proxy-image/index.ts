@@ -8,7 +8,7 @@ const CORS = {
 
 // Allow both R2 and Supabase Storage — items uploaded before the R2
 // migration are stored at *.supabase.co/storage/…
-const ALLOWED_HOSTS = ["r2.dev", "supabase.co"];
+const ALLOWED_HOSTS = ["r2.dev", "supabase.co", "googleusercontent.com", "githubusercontent.com"];
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
