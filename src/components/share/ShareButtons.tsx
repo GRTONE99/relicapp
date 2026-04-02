@@ -4,53 +4,62 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
 import { Download, Loader2 } from "lucide-react";
 
-// Load an image fresh with crossOrigin="anonymous" so it is CORS-safe for
-// canvas.drawImage. The cache-buster bypasses any previously-cached opaque
-// (non-CORS) response that would taint the canvas on mobile Safari.
-function loadCorsImage(src: string): Promise<HTMLImageElement> {
-  const bust = src.includes("?") ? "&_cb=" : "?_cb=";
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("load failed"));
-    setTimeout(() => reject(new Error("timeout")), 10000);
-    img.src = src + bust + Date.now();
+// Extract the original image URL from a proxy URL, or return src unchanged.
+function originalSrc(src: string): string {
+  try {
+    const encoded = new URL(src).searchParams.get("url");
+    if (encoded) return decodeURIComponent(encoded);
+  } catch { /* not a proxy URL */ }
+  return src;
+}
+
+async function fetchAsDataUrl(url: string): Promise<string> {
+  const sep = url.includes("?") ? "&" : "?";
+  const res = await fetch(url + sep + "_cb=" + Date.now(), {
+    mode: "cors",
+    credentials: "omit",
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const blob = await res.blob();
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
   });
 }
 
 async function imgToDataUrl(img: HTMLImageElement): Promise<string | null> {
-  // Try canvas extraction from the already-loaded browser image first.
+  const proxied = img.getAttribute("src") || "";
+  if (!proxied || proxied.startsWith("data:") || proxied.startsWith("blob:")) return null;
+
+  const direct = originalSrc(proxied);
+
+  // 1. Canvas draw from the already-loaded DOM image (zero network).
   if (img.complete && img.naturalWidth > 0) {
-    const c = document.createElement("canvas");
-    c.width = img.naturalWidth;
-    c.height = img.naturalHeight;
-    const ctx = c.getContext("2d");
-    if (ctx) {
-      try {
-        ctx.drawImage(img, 0, 0);
-        return c.toDataURL("image/jpeg", 0.92);
-      } catch { /* tainted canvas — fall through */ }
-    }
+    try {
+      const scale = Math.min(1, 1200 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.naturalWidth * scale);
+      c.height = Math.round(img.naturalHeight * scale);
+      const ctx = c.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      const dataUrl = c.toDataURL("image/jpeg", 0.92);
+      if (dataUrl && dataUrl.length > 100) return dataUrl;
+    } catch { /* canvas tainted — fall through */ }
   }
 
-  // Reload fresh with explicit CORS so the canvas draw is guaranteed clean.
-  const src = img.getAttribute("src") || "";
-  if (!src || src.startsWith("data:") || src.startsWith("blob:")) return null;
-  try {
-    const fresh = await loadCorsImage(src);
-    const maxDim = 2048;
-    const scale = Math.min(1, maxDim / Math.max(fresh.naturalWidth, fresh.naturalHeight));
-    const c = document.createElement("canvas");
-    c.width = Math.round(fresh.naturalWidth * scale);
-    c.height = Math.round(fresh.naturalHeight * scale);
-    const ctx = c.getContext("2d")!;
-    ctx.drawImage(fresh, 0, 0, c.width, c.height);
-    return c.toDataURL("image/jpeg", 0.92);
-  } catch (e) {
-    console.warn("[share] could not load image:", src.substring(0, 80), e);
-    return null;
+  // 2. Fetch the original URL directly (R2 / Supabase Storage have CORS for
+  //    this domain). Bypasses the proxy for one less network hop.
+  if (direct !== proxied) {
+    try { return await fetchAsDataUrl(direct); } catch { /* fall through */ }
   }
+
+  // 3. Fetch via the proxy as a final fallback.
+  try { return await fetchAsDataUrl(proxied); } catch { /* fall through */ }
+
+  console.warn("[share] all methods failed for:", proxied.substring(0, 80));
+  return null;
 }
 
 async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Promise<Blob | null> {
@@ -58,14 +67,26 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
   const card = cardRef.current;
   const { width, height } = card.getBoundingClientRect();
 
-  // Collect data URLs for every image in the live card.
   const liveImgs = Array.from(card.querySelectorAll<HTMLImageElement>("img"));
+
+  // Wait for any images that are still fetching from the proxy.
+  await Promise.all(
+    liveImgs.map(img =>
+      img.complete
+        ? Promise.resolve()
+        : new Promise<void>(resolve => {
+            img.addEventListener("load",  () => resolve(), { once: true });
+            img.addEventListener("error", () => resolve(), { once: true });
+            setTimeout(resolve, 10_000);
+          })
+    )
+  );
+
+  // Build data URLs for every image.
   const dataUrls = await Promise.all(liveImgs.map(imgToDataUrl));
 
-  // Clone into a fixed-position invisible overlay. position:fixed ensures
-  // CSS layout (aspect-ratio, flex, etc.) computes correctly on mobile Safari.
-  // position:absolute with a large negative offset causes Safari to skip
-  // layout/paint for those elements.
+  // Clone into a fixed-position invisible overlay so that CSS layout
+  // (aspect-ratio, flex, etc.) computes correctly on mobile Safari.
   const wrapper = document.createElement("div");
   wrapper.style.cssText = [
     "position:fixed",
@@ -80,14 +101,18 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
   const clone = card.cloneNode(true) as HTMLDivElement;
   wrapper.appendChild(clone);
   document.body.appendChild(wrapper);
-  void wrapper.offsetHeight; // force layout
+  void wrapper.offsetHeight;
 
   const cloneImgs = Array.from(clone.querySelectorAll<HTMLImageElement>("img"));
   cloneImgs.forEach((img, i) => {
-    if (dataUrls[i]) img.src = dataUrls[i]!;
-    else img.style.visibility = "hidden";
+    if (dataUrls[i]) {
+      img.removeAttribute("crossorigin");
+      img.src = dataUrls[i]!;
+    } else {
+      img.style.visibility = "hidden";
+    }
   });
-  void wrapper.offsetHeight; // force layout after src swap
+  void wrapper.offsetHeight;
 
   try {
     const cloneRect = clone.getBoundingClientRect();
