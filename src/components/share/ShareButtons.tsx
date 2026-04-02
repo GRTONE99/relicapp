@@ -13,13 +13,18 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
   // Doing this BEFORE cloning means we never touch the browser's image cache
   // (which may have non-CORS entries from initial page render), so canvas
   // taint is impossible. Data URLs are always CORS-clean for toPng/canvas.
-  const imgs = Array.from(card.querySelectorAll<HTMLImageElement>("img"));
-  const dataUrls = await Promise.all(
-    imgs.map(async (img) => {
-      const src = img.getAttribute("src") || "";
-      if (!src || src.startsWith("data:") || src.startsWith("blob:")) return src || null;
+  //
+  // We add a timestamp cache-buster so mobile Safari can't serve a stale
+  // cached response that lacks CORS headers. We also retry once to handle
+  // edge-function cold starts (first invocation may be slow or fail).
+  const cb = Date.now();
+  const bustSrc = (src: string) =>
+    src.includes("?") ? `${src}&_cb=${cb}` : `${src}?_cb=${cb}`;
+
+  const fetchAsDataUrl = async (src: string): Promise<string | null> => {
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const res = await fetch(src, { mode: "cors", credentials: "omit", cache: "no-store" });
+        const res = await fetch(bustSrc(src), { mode: "cors", credentials: "omit" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const blob = await res.blob();
         return await new Promise<string>((resolve, reject) => {
@@ -29,9 +34,18 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
           reader.readAsDataURL(blob);
         });
       } catch (e) {
-        console.warn("[share] prefetch failed:", src.substring(0, 80), e);
-        return null;
+        if (attempt === 1) console.warn("[share] prefetch failed:", src.substring(0, 80), e);
       }
+    }
+    return null;
+  };
+
+  const imgs = Array.from(card.querySelectorAll<HTMLImageElement>("img"));
+  const dataUrls = await Promise.all(
+    imgs.map(async (img) => {
+      const src = img.getAttribute("src") || "";
+      if (!src || src.startsWith("data:") || src.startsWith("blob:")) return src || null;
+      return fetchAsDataUrl(src);
     })
   );
 
