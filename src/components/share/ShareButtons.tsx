@@ -36,8 +36,13 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
         img.crossOrigin = "anonymous"; // ← must be set BEFORE src
         img.onload  = () => resolve();
         img.onerror = () => resolve();
+        // Append a cache-buster so the browser makes a fresh CORS request
+        // instead of returning the cached non-CORS response from the initial
+        // page render (which would taint the canvas).
+        const bust = `_cb=${Date.now()}`;
+        const corsUrl = src.includes("?") ? `${src}&${bust}` : `${src}?${bust}`;
         img.src = ""; // reset so the browser treats next assignment as new load
-        img.src = src;
+        img.src = corsUrl;
         setTimeout(resolve, 10_000);
       });
     })
