@@ -9,8 +9,34 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
   const card = cardRef.current;
   const { width, height } = card.getBoundingClientRect();
 
-  // Clone into a fixed-position invisible overlay so CSS layout computes
-  // correctly on mobile Safari (aspect-ratio, flex, etc.).
+  // Step 1: Prefetch every external image as a data URL via the proxy.
+  // Doing this BEFORE cloning means we never touch the browser's image cache
+  // (which may have non-CORS entries from initial page render), so canvas
+  // taint is impossible. Data URLs are always CORS-clean for toPng/canvas.
+  const imgs = Array.from(card.querySelectorAll<HTMLImageElement>("img"));
+  const dataUrls = await Promise.all(
+    imgs.map(async (img) => {
+      const src = img.getAttribute("src") || "";
+      if (!src || src.startsWith("data:") || src.startsWith("blob:")) return src || null;
+      try {
+        const res = await fetch(src, { mode: "cors", credentials: "omit", cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        return await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (e) {
+        console.warn("[share] prefetch failed:", src.substring(0, 80), e);
+        return null;
+      }
+    })
+  );
+
+  // Step 2: Clone into a fixed-position invisible overlay so CSS layout
+  // computes correctly on mobile Safari (aspect-ratio, flex, etc.).
   const wrapper = document.createElement("div");
   wrapper.style.cssText = [
     "position:fixed", "top:0", "left:0",
@@ -21,82 +47,20 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
   wrapper.appendChild(clone);
   document.body.appendChild(wrapper);
 
-  // Force every image in the clone to reload with crossOrigin set BEFORE src.
-  // On mobile Safari, React sometimes sets the src attribute before crossorigin,
-  // causing the browser to start a non-CORS load. That taints the canvas and
-  // the image is unusable for capture. Reloading from the clone (in a
-  // position:fixed element) with crossOrigin first guarantees a CORS-clean load.
+  // Step 3: Swap in data URLs. Remove crossorigin — data URLs don't need it.
   const cloneImgs = Array.from(clone.querySelectorAll<HTMLImageElement>("img"));
-  await Promise.all(
-    cloneImgs.map(img => {
-      const src = img.getAttribute("src") || "";
-      if (!src || src.startsWith("data:") || src.startsWith("blob:")) return;
-      return new Promise<void>(resolve => {
-        img.removeAttribute("crossorigin");
-        img.crossOrigin = "anonymous"; // ← must be set BEFORE src
-        img.onload  = () => resolve();
-        img.onerror = () => resolve();
-        // Append a cache-buster so the browser makes a fresh CORS request
-        // instead of returning the cached non-CORS response from the initial
-        // page render (which would taint the canvas).
-        const bust = `_cb=${Date.now()}`;
-        const corsUrl = src.includes("?") ? `${src}&${bust}` : `${src}?${bust}`;
-        img.src = ""; // reset so the browser treats next assignment as new load
-        img.src = corsUrl;
-        setTimeout(resolve, 10_000);
-      });
-    })
-  );
-
-  // Extract each loaded image as a data URL via canvas.
-  const dataUrls = await Promise.all(
-    cloneImgs.map(async img => {
-      // Canvas draw — works because we just forced a CORS-safe load above.
-      if (img.complete && img.naturalWidth > 0) {
-        try {
-          const scale = Math.min(1, 1200 / Math.max(img.naturalWidth, img.naturalHeight));
-          const c = document.createElement("canvas");
-          c.width  = Math.round(img.naturalWidth  * scale);
-          c.height = Math.round(img.naturalHeight * scale);
-          c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
-          const dataUrl = c.toDataURL("image/jpeg", 0.92);
-          if (dataUrl.length > 100) return dataUrl;
-        } catch { /* canvas still tainted — fall to fetch */ }
-      }
-
-      // Fetch fallback via proxy (catches images that failed to load above).
-      const src = img.getAttribute("src") || "";
-      if (!src) return null;
-      try {
-        const res = await fetch(src, { mode: "cors", credentials: "omit" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const blob = await res.blob();
-        return await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-      } catch (e) {
-        console.warn("[share] image unavailable:", src.substring(0, 80), e);
-        return null;
-      }
-    })
-  );
-
-  // Swap in data URLs (remove crossorigin so html-to-image won't re-fetch).
   cloneImgs.forEach((img, i) => {
+    img.removeAttribute("crossorigin");
     if (dataUrls[i]) {
-      img.removeAttribute("crossorigin");
       img.src = dataUrls[i]!;
     } else {
       img.style.visibility = "hidden";
     }
   });
-  void wrapper.offsetHeight;
+  void wrapper.offsetHeight; // reflow
 
-  // Bake aspect-ratio → explicit px height so html-to-image's SVG foreignObject
-  // can render them (SVG does not evaluate CSS aspect-ratio, so containers get 0 height).
+  // Step 4: Bake aspect-ratio → explicit px height so html-to-image's SVG
+  // foreignObject renderer can measure containers (SVG ignores aspect-ratio CSS).
   clone.querySelectorAll<HTMLElement>("*").forEach(el => {
     const ar = window.getComputedStyle(el).getPropertyValue("aspect-ratio");
     if (ar && ar !== "auto" && ar !== "none" && ar !== "") {
@@ -107,7 +71,7 @@ async function captureCardAsBlob(cardRef: React.RefObject<HTMLDivElement>): Prom
       }
     }
   });
-  void wrapper.offsetHeight; // reflow after baking heights
+  void wrapper.offsetHeight; // reflow after height baking
 
   try {
     const r = clone.getBoundingClientRect();
