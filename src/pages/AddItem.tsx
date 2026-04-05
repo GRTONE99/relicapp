@@ -6,12 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Package, Shield, Calendar, ScrollText, TrendingUp, FileText, Lock } from "lucide-react";
+import { Loader2, Package, Shield, Calendar, ScrollText, TrendingUp, FileText, Lock, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { useCollection } from "@/context/CollectionContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { PhotoUploadCard } from "@/components/AddItem/PhotoUploadCard";
+import { TagInput } from "@/components/TagInput";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
   SPORT_OPTIONS,
@@ -56,6 +57,7 @@ export default function AddItem() {
   const [eventDetails, setEventDetails] = useState("");
   const [supportingEvidence, setSupportingEvidence] = useState("");
   const [notes, setNotes] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
 
   // ── AI detection ─────────────────────────────────────────────────────────────
 
@@ -128,6 +130,7 @@ export default function AddItem() {
         storageLocation, notes, dateAcquired,
         images: photos,
         createdDate: new Date().toISOString().split("T")[0],
+        tags,
         purchasedFrom, origin, previousOwners, eventDetails, supportingEvidence,
       });
       toast.success("Item added to your roster!");
@@ -325,6 +328,18 @@ export default function AddItem() {
               <Label>Supporting Evidence</Label>
               <Textarea placeholder="Letters of authenticity, photos, receipts, documentation details" rows={2} value={supportingEvidence} onChange={(e) => setSupportingEvidence(e.target.value)} />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Tags */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Tag className="w-4 h-4 text-primary" />Tags
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TagInput tags={tags} onChange={setTags} />
           </CardContent>
         </Card>
 
