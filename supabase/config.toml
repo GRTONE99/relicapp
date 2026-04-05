@@ -7,3 +7,5 @@ project_id = "fqppcbfhmumqohglbebn"
     verify_jwt = false
   [functions.process-email-queue]
     verify_jwt = true
+  [functions.ebay-comps]
+    verify_jwt = false
