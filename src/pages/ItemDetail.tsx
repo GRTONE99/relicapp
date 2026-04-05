@@ -14,6 +14,7 @@ import { ArrowLeft, Shield, TrendingUp, Calendar, Pencil, Trash2, Save, X, Troph
 import { toast } from "sonner";
 import { ItemImageGallery } from "@/components/ItemDetail/ItemImageGallery";
 import { TagInput } from "@/components/TagInput";
+import { EbayComps } from "@/components/ItemDetail/EbayComps";
 import {
   SPORT_OPTIONS,
   CATEGORY_OPTIONS,
@@ -469,6 +470,8 @@ export default function ItemDetail() {
           )}
         </div>
       </div>
+
+      <EbayComps item={editing ? form : item} />
     </div>
   );
 }
