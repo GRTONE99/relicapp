@@ -246,10 +246,15 @@ function isRelevant(comp: EbayComp, input: CompsInput): boolean {
     if (lastName.length > 2 && !titleLower.includes(lastName)) return false;
   }
 
-  // Rule 3: auth terms required for signed/authenticated searches
+  // Rule 3: auth terms required for signed/authenticated searches.
+  // Also detect auth intent directly from the item title — if the collector's
+  // own item name contains "autographed", "signed", etc., comps must match.
+  const inputTitleLower = input.title.toLowerCase();
+  const titleImpliesAuth = AUTH_TERMS.some((t) => inputTitleLower.includes(t));
   const isAuthSearch =
     !!input.authentication_company ||
-    (input.category ?? "").toLowerCase() === "autographs";
+    (input.category ?? "").toLowerCase() === "autographs" ||
+    titleImpliesAuth;
 
   if (isAuthSearch) {
     const hasAuthTerm = AUTH_TERMS.some((t) => titleLower.includes(t));
