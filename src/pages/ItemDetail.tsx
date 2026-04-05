@@ -319,7 +319,7 @@ export default function ItemDetail() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Purchase Price</Label>
-                    <Input type="number" min="0" step="0.01" value={form.purchasePrice} onChange={(e) => updateField("purchasePrice", Number(e.target.value))} className="mono" />
+                    <Input type="text" inputMode="decimal" value={form.purchasePrice} onChange={(e) => updateField("purchasePrice", Number(e.target.value))} className="mono" />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Date Acquired</Label>
@@ -445,7 +445,7 @@ export default function ItemDetail() {
               <CardContent>
                 <div className="space-y-1">
                   <Label className="text-xs">Estimated Value</Label>
-                  <Input type="number" min="0" step="0.01" value={form.estimatedValue} onChange={(e) => updateField("estimatedValue", Number(e.target.value))} className="mono" />
+                  <Input type="text" inputMode="decimal" value={form.estimatedValue} onChange={(e) => updateField("estimatedValue", Number(e.target.value))} className="mono" />
                 </div>
               </CardContent>
             </Card>
@@ -475,3 +475,4 @@ export default function ItemDetail() {
     </div>
   );
 }
+
