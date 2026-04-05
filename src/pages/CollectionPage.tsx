@@ -26,6 +26,7 @@ export default function CollectionPage() {
   const [search, setSearch] = useState("");
   const [rosterFilter, setRosterFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("all");
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
 
   const sports = useMemo(
@@ -38,6 +39,11 @@ export default function CollectionPage() {
     [items]
   );
 
+  const allTags = useMemo(
+    () => [...new Set(items.flatMap((i) => i.tags))].sort(),
+    [items]
+  );
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return items.filter((item) => {
@@ -46,14 +52,15 @@ export default function CollectionPage() {
         item.player.toLowerCase().includes(q);
       const matchSport = rosterFilter === "all" || item.sport === rosterFilter;
       const matchCat = categoryFilter === "all" || item.category === categoryFilter;
-      return matchSearch && matchSport && matchCat;
+      const matchTag = tagFilter === "all" || item.tags.includes(tagFilter);
+      return matchSearch && matchSport && matchCat && matchTag;
     });
-  }, [items, search, rosterFilter, categoryFilter]);
+  }, [items, search, rosterFilter, categoryFilter, tagFilter]);
 
   // Reset to first page whenever filters or search change
   useEffect(() => {
     setVisibleCount(ITEMS_PER_PAGE);
-  }, [search, rosterFilter, categoryFilter]);
+  }, [search, rosterFilter, categoryFilter, tagFilter]);
 
   const visibleItems = filtered.slice(0, visibleCount);
   const hasMore = filtered.length > visibleCount;
@@ -86,6 +93,15 @@ export default function CollectionPage() {
             {categories.map((c) => <SelectItem key={c} value={c}>{CATEGORY_LABELS[c] || c}</SelectItem>)}
           </SelectContent>
         </Select>
+        {allTags.length > 0 && (
+          <Select value={tagFilter} onValueChange={setTagFilter}>
+            <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Tag" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Tags</SelectItem>
+              {allTags.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
