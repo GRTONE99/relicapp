@@ -32,6 +32,7 @@ export interface CollectionItem {
   dateAcquired: string;
   images: string[];
   createdDate: string;
+  tags: string[];
   // Provenance fields
   purchasedFrom: string;
   origin: string;
@@ -59,6 +60,7 @@ interface CollectionContextType {
   addItem: (item: CollectionItem) => Promise<void>;
   updateItem: (id: string, updates: Partial<CollectionItem>) => Promise<void>;
   deleteItem: (id: string) => Promise<void>;
+  setItemTags: (itemId: string, tags: string[]) => Promise<void>;
   getTotalValue: () => number;
   getTotalCost: () => number;
   getTotalGain: () => number;
@@ -78,7 +80,7 @@ const CollectionContext = createContext<CollectionContextType | undefined>(undef
 // ─── DB → app model mapper ────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rowToItem(row: any): CollectionItem {
+function rowToItem(row: any, tagsByItemId: Record<string, string[]> = {}): CollectionItem {
   return {
     id: row.id,
     collectionId: row.collection_id ?? "1",
@@ -102,6 +104,7 @@ function rowToItem(row: any): CollectionItem {
     dateAcquired: row.date_acquired ?? "",
     images: row.images ?? [],
     createdDate: row.created_at?.split("T")[0] ?? "",
+    tags: tagsByItemId[row.id] ?? [],
     // Provenance
     purchasedFrom: row.purchased_from ?? "",
     origin: row.origin ?? "",
@@ -148,7 +151,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Fetch items whenever user changes
+  // Fetch items and their tags whenever user changes
   useEffect(() => {
     if (!user) {
       setItems([]);
@@ -160,7 +163,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     setItemsLoading(true);
 
     // Safety timeout: if the query never resolves, unblock the dashboard after
-    // 15 seconds so the user sees the empty state instead of loading forever.
+    // 30 seconds so the user sees the empty state instead of loading forever.
     const fetchTimeout = setTimeout(() => {
       if (!cancelled) {
         toast.error("Loading timed out. Check your connection and refresh.");
@@ -168,20 +171,45 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       }
     }, 30000);
 
-    supabase
-      .from("collection_items")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        clearTimeout(fetchTimeout);
-        if (cancelled) return;
-        if (error) {
-          toast.error("Failed to load your collection.");
-        } else if (data) {
-          setItems(data.map(rowToItem));
-        }
+    (async () => {
+      const { data, error } = await supabase
+        .from("collection_items")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      clearTimeout(fetchTimeout);
+      if (cancelled) return;
+
+      if (error) {
+        toast.error("Failed to load your collection.");
         setItemsLoading(false);
-      });
+        return;
+      }
+
+      if (!data) {
+        setItemsLoading(false);
+        return;
+      }
+
+      // Load all item→tag associations for this user in one query
+      const { data: itemTagData } = await supabase
+        .from("item_tags")
+        .select("item_id, tags(name)");
+
+      if (cancelled) return;
+
+      const tagsByItemId: Record<string, string[]> = {};
+      for (const row of itemTagData ?? []) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tagName = (row.tags as any)?.name as string | undefined;
+        if (tagName && row.item_id) {
+          (tagsByItemId[row.item_id] ??= []).push(tagName);
+        }
+      }
+
+      setItems(data.map((row) => rowToItem(row, tagsByItemId)));
+      setItemsLoading(false);
+    })();
 
     return () => {
       cancelled = true;
@@ -223,6 +251,39 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   // ── Free-tier limit ─────────────────────────────────────────────────────────
 
   const isAtFreeLimit = () => items.length >= FREE_ITEM_LIMIT;
+
+  // ── Tag helpers ─────────────────────────────────────────────────────────────
+
+  // Write tags to DB for an item: full replace (delete all, re-insert).
+  // Does not update local React state — callers must do that themselves.
+  const writeTagsForItem = async (itemId: string, tagNames: string[]) => {
+    if (!user) return;
+    await supabase.from("item_tags").delete().eq("item_id", itemId).eq("user_id", user.id);
+    if (tagNames.length === 0) return;
+
+    // Upsert tags (get-or-create by user_id + name), then insert join rows
+    const { data: tagRows } = await supabase
+      .from("tags")
+      .upsert(
+        tagNames.map((name) => ({ user_id: user.id, name })),
+        { onConflict: "user_id,name" }
+      )
+      .select("id");
+
+    if (tagRows?.length) {
+      await supabase.from("item_tags").insert(
+        tagRows.map((tag) => ({ item_id: itemId, tag_id: tag.id, user_id: user.id }))
+      );
+    }
+  };
+
+  // Public: set tags for an item and update local state
+  const setItemTags = async (itemId: string, tagNames: string[]) => {
+    await writeTagsForItem(itemId, tagNames);
+    setItems((prev) =>
+      prev.map((item) => (item.id === itemId ? { ...item, tags: tagNames } : item))
+    );
+  };
 
   // ── CRUD ────────────────────────────────────────────────────────────────────
 
@@ -290,7 +351,10 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     }
 
     if (data) {
-      setItems((prev) => [rowToItem(data), ...prev]);
+      if (item.tags.length > 0) {
+        await writeTagsForItem(data.id, item.tags);
+      }
+      setItems((prev) => [{ ...rowToItem(data), tags: item.tags }, ...prev]);
     }
   };
 
@@ -336,6 +400,11 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     if (error) {
       toast.error("Failed to save changes. Please try again.");
       throw error;
+    }
+
+    // Tags live in a separate table — write them if included in the update
+    if (updates.tags !== undefined) {
+      await writeTagsForItem(id, updates.tags);
     }
 
     const finalUpdates = updates.images !== undefined
@@ -418,6 +487,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
         addItem,
         updateItem,
         deleteItem,
+        setItemTags,
         getTotalValue,
         getTotalCost,
         getTotalGain,
