@@ -7,11 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DatePicker } from "@/components/ui/date-picker";
-import { ArrowLeft, Shield, TrendingUp, Calendar, Pencil, Trash2, Save, X, Trophy, Package, ScrollText, FileText, Loader2, Share2 } from "lucide-react";
+import { ArrowLeft, Shield, TrendingUp, Calendar, Pencil, Trash2, Save, X, Trophy, Package, ScrollText, FileText, Loader2, Share2, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { ItemImageGallery } from "@/components/ItemDetail/ItemImageGallery";
+import { TagInput } from "@/components/TagInput";
 import {
   SPORT_OPTIONS,
   CATEGORY_OPTIONS,
@@ -161,7 +163,7 @@ export default function ItemDetail() {
 
         {/* ── Right column: detail cards ──────────────────────────────────────── */}
         <div className="space-y-4">
-          {/* Title (view mode only) */}
+          {/* Title + tags (view mode only) */}
           {!editing && (
             <div>
               <h1 className="text-2xl font-bold tracking-tight">{item.name}</h1>
@@ -169,6 +171,13 @@ export default function ItemDetail() {
                 <p className="text-muted-foreground">
                   {item.player}{item.team ? ` · ${item.team}` : ""}{item.year ? ` · ${item.year}` : ""}
                 </p>
+              )}
+              {item.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {item.tags.map((tag) => (
+                    <Badge key={tag} variant="secondary">{tag}</Badge>
+                  ))}
+                </div>
               )}
             </div>
           )}
@@ -234,6 +243,15 @@ export default function ItemDetail() {
                     <Label className="text-xs">Storage Location</Label>
                     <Input value={form.storageLocation} onChange={(e) => updateField("storageLocation", e.target.value)} />
                   </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <Tag className="w-3 h-3" /> Tags
+                  </Label>
+                  <TagInput
+                    tags={form.tags}
+                    onChange={(tags) => updateField("tags", tags)}
+                  />
                 </div>
               </CardContent>
             </Card>
