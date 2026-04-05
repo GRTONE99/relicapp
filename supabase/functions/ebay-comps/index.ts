@@ -458,12 +458,9 @@ async function fetchApifyComps(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       // Input schema for caffein.dev~ebay-sold-listings.
-      // "searchTerms" accepts an array of keyword strings.
-      searchTerms: [query],
+      // The actor requires the "keyword" field (singular string).
+      keyword: query,
       maxItems: MAX_ITEMS,
-      // Request most-recently-sold first so recency scoring is meaningful
-      // (actor may not support this; harmless if ignored)
-      sortBy: "endDate",
     }),
   });
 
