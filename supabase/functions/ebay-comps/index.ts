@@ -240,10 +240,17 @@ function isRelevant(comp: EbayComp, input: CompsInput): boolean {
     if (titleLower.includes(term)) return false;
   }
 
-  // Rule 2: player name check
+  // Rule 2: player name check.
+  // Always require last name. Also require first name when the last name is short
+  // (≤5 chars) to avoid false matches from family members or similarly-named
+  // athletes (e.g. "Valerie Bure" and "Valeri Bure" must not match "Pavel Bure").
   if (input.player) {
-    const lastName = input.player.trim().split(/\s+/).pop()?.toLowerCase() ?? "";
+    const nameParts = input.player.trim().toLowerCase().split(/\s+/);
+    const lastName = nameParts[nameParts.length - 1];
+    const firstName = nameParts.length > 1 ? nameParts[0] : null;
+
     if (lastName.length > 2 && !titleLower.includes(lastName)) return false;
+    if (firstName && firstName.length > 2 && lastName.length <= 5 && !titleLower.includes(firstName)) return false;
   }
 
   // Rule 3: auth terms required for signed/authenticated searches.
@@ -259,6 +266,34 @@ function isRelevant(comp: EbayComp, input: CompsInput): boolean {
   if (isAuthSearch) {
     const hasAuthTerm = AUTH_TERMS.some((t) => titleLower.includes(t));
     if (!hasAuthTerm) return false;
+  }
+
+  // Rule 4: item type matching.
+  // If the search title names a specific collectible type (puck, jersey, card, etc.)
+  // every comp must contain that type or a known synonym. Prevents a "puck" search
+  // from returning jerseys, cards, photos, and other unrelated formats.
+  const ITEM_TYPE_SYNONYMS: Record<string, string[]> = {
+    puck:    ["puck"],
+    jersey:  ["jersey", "sweater"],
+    card:    ["card"],
+    photo:   ["photo", "photograph", "8x10"],
+    bat:     ["bat"],
+    ball:    ["ball"],
+    helmet:  ["helmet"],
+    glove:   ["glove"],
+    poster:  ["poster", "lithograph", "print"],
+    ticket:  ["ticket", "stub"],
+    figure:  ["figure", "bobblehead", "figurine"],
+    shoe:    ["shoe", "cleat", "sneaker", "boot"],
+    ring:    ["ring"],
+  };
+
+  const detectedType = Object.keys(ITEM_TYPE_SYNONYMS).find(
+    (type) => inputTitleLower.includes(type)
+  );
+  if (detectedType) {
+    const synonyms = ITEM_TYPE_SYNONYMS[detectedType];
+    if (!synonyms.some((s) => titleLower.includes(s))) return false;
   }
 
   return true;
