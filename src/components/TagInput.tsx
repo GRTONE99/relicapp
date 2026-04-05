@@ -72,7 +72,7 @@ export function TagInput({ tags, onChange }: TagInputProps) {
         />
       )}
       <p className="text-xs text-muted-foreground">
-        {tags.length}/{MAX_TAGS} tags · normalized to lowercase-hyphenated
+        {tags.length}/{MAX_TAGS} tags
       </p>
     </div>
   );
