@@ -63,80 +63,12 @@ type ApifyRawItem = Record<string, any>;
 // ─── Keyword builder ──────────────────────────────────────────────────────────
 
 /**
- * Build a smart eBay sold-listings search query from item fields.
- *
- * Strategy:
- * 1. Always include year + player when present (highest signal)
- * 2. Include grade + auth company for graded/authenticated items
- * 3. Include a short title fragment to capture item-type specifics
- * 4. Avoid overly long queries that reduce result counts
+ * Use the item name as the eBay search query directly.
+ * The item name is already the most accurate description of what the collector
+ * has and produces the most relevant sold comps.
  */
 function buildSearchQuery(input: CompsInput): string {
-  const parts: string[] = [];
-
-  // Year is high-signal for cards; include it first
-  if (input.year) parts.push(input.year);
-
-  // Player name is the most important term
-  if (input.player) parts.push(input.player);
-
-  // For graded items include the company + grade (e.g. "PSA 9")
-  if (input.authentication_company && input.grade) {
-    parts.push(input.authentication_company, input.grade);
-  } else if (input.authentication_company) {
-    parts.push(input.authentication_company);
-  } else if (input.grade) {
-    parts.push(input.grade);
-  }
-
-  // Append a short form of the item title, trimmed to 5 words so the total
-  // query stays under ~80 chars and doesn't over-specify
-  if (input.title) {
-    const titleWords = input.title.trim().split(/\s+/).slice(0, 5).join(" ");
-    // Only add if it adds content beyond what player already covers
-    const titleLower = titleWords.toLowerCase();
-    const playerLower = (input.player ?? "").toLowerCase();
-    if (!playerLower || !titleLower.includes(playerLower)) {
-      parts.push(titleWords);
-    } else {
-      // Include category-specific keywords from title only
-      const categoryWords = deriveCategoryKeywords(input);
-      if (categoryWords) parts.push(categoryWords);
-    }
-  }
-
-  // Add team when no player is provided (team-specific memorabilia)
-  if (!input.player && input.team) parts.push(input.team);
-
-  return parts.join(" ").trim();
-}
-
-/**
- * Extract category-specific keywords to append to the query.
- * Keeps the query focused on the item type without duplicating player name.
- */
-function deriveCategoryKeywords(input: CompsInput): string {
-  const category = (input.category ?? "").toLowerCase();
-  const titleWords = (input.title ?? "").toLowerCase().split(/\s+/);
-
-  // For autographs/signed items, "signed" or "autograph" is critical
-  if (category === "autographs") return "signed autograph";
-
-  // For game-used, surface the key descriptor
-  if (category === "game-used") {
-    const gameUsedWords = ["jersey", "bat", "ball", "glove", "helmet", "stick"];
-    const match = gameUsedWords.find((w) => titleWords.includes(w));
-    return match ? `game used ${match}` : "game used";
-  }
-
-  // For cards, include "rookie" or "card" if present in title
-  if (category === "cards") {
-    const cardWords = ["rookie", "rc", "card", "refractor", "chrome", "prizm", "auto"];
-    const matches = cardWords.filter((w) => titleWords.includes(w));
-    return matches.slice(0, 2).join(" ");
-  }
-
-  return "";
+  return input.title.trim();
 }
 
 // ─── Price parser ─────────────────────────────────────────────────────────────
