@@ -290,7 +290,7 @@ export default function AddItem() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Purchase Price</Label>
-                <Input type="number" min="0" step="0.01" placeholder="0.00" className="mono" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} />
+                <Input type="text" inputMode="decimal" placeholder="0.00" className="mono" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Date Acquired</Label>
@@ -353,7 +353,7 @@ export default function AddItem() {
           <CardContent>
             <div className="space-y-2">
               <Label>Estimated Value</Label>
-              <Input type="number" min="0" step="0.01" placeholder="0.00" className="mono" value={estimatedValue} onChange={(e) => setEstimatedValue(e.target.value)} />
+              <Input type="text" inputMode="decimal" placeholder="0.00" className="mono" value={estimatedValue} onChange={(e) => setEstimatedValue(e.target.value)} />
             </div>
           </CardContent>
         </Card>
@@ -403,3 +403,4 @@ export default function AddItem() {
     </div>
   );
 }
+
