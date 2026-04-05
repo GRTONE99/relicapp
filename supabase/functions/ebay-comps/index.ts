@@ -240,17 +240,10 @@ function isRelevant(comp: EbayComp, input: CompsInput): boolean {
     if (titleLower.includes(term)) return false;
   }
 
-  // Rule 2: player name check.
-  // Always require last name. Also require first name when the last name is short
-  // (≤5 chars) to avoid false matches from family members or similarly-named
-  // athletes (e.g. "Valerie Bure" and "Valeri Bure" must not match "Pavel Bure").
+  // Rule 2: player name check — last name must appear in the comp title.
   if (input.player) {
-    const nameParts = input.player.trim().toLowerCase().split(/\s+/);
-    const lastName = nameParts[nameParts.length - 1];
-    const firstName = nameParts.length > 1 ? nameParts[0] : null;
-
+    const lastName = input.player.trim().split(/\s+/).pop()?.toLowerCase() ?? "";
     if (lastName.length > 2 && !titleLower.includes(lastName)) return false;
-    if (firstName && firstName.length > 2 && lastName.length <= 5 && !titleLower.includes(firstName)) return false;
   }
 
   // Rule 3: auth terms required for signed/authenticated searches.
